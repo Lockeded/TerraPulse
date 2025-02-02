@@ -173,8 +173,9 @@ def main():
 
     most_similar_coords = get_coordinates_list(positive_indices, text_list)
     least_similar_coords = get_coordinates_list(negative_indices, text_list)
-    prompt_template = f"这是一张查询图片,假如你是一位图像地理定位方面的专家,请你结合你自己的知识,给出对这张图片地理坐标的猜测.这些是检索库中与其相似度最高的{k}张图片的地理坐标:{most_similar_coords},这些是与其相似度最低的{k}张的图片的地理坐标:{least_similar_coords},请注意查询图片并不在其中,所以不要直接使用这些坐标,而是作为参考,请你结合以上坐标信息,图像体现的地理位置特征以及你自己具备的知识,在推理后给出一个经过推理与计算的对查询图片地理坐标的猜测答案.你的答案必须在第一行以(LAT, LON)格式给出,不可为空,而后是你的推理依据."
-    print(prompt_template)
+    prompt_template = f"这是一张查询图片,假如你是一位图像地理定位方面的专家,请你结合你自己的知识,给出对这张图片地理坐标的猜测.这些是检索库中与其相似度最高的{k}张图片的地理坐标:{most_similar_coords},这些是与其相似度最低的{k}张的图片的地理坐标:{least_similar_coords},请注意查询图片并不在其中,所以不要直接使用这些坐标,而是作为参考,请你结合以上坐标信息,图像体现的地理位置特征以及你自己具备的知识,在推理后给出一个经过推理与计算的对查询图片地理坐标的猜测答案.你的答案必须在第一行以(LAT, LON)格式给出,不可为空,而后是你的推理思考过程."
+    print("prompt: ",prompt_template)
+    print("*******-----------------********")
     query_gpt_with_images(query_image_path, prompt_template)
 
 if __name__ == "__main__":

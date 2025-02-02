@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # Example of how to call the main function directly
     checkpoint_path = Path("models/base_M/epoch=014-val_loss=18.4833.ckpt")
     hparams_path = Path("models/base_M/hparams.yaml")
-    image_path = Path("resources/images/im2gps/sample_image.jpg")  # Path to the image you want to predict
+    image_path = Path("query.jpg")  # Path to the image you want to predict
     use_gpu = True  # Set to False if you want to run on CPU
 
     main(checkpoint_path, hparams_path, image_path, use_gpu)
