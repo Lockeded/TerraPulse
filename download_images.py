@@ -13,7 +13,7 @@ from functools import partial
 import logging
 import requests
 
-# 新增请求头配置
+# 请求头配置
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
@@ -21,34 +21,33 @@ USER_AGENTS = [
 ]
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-start_index = 40000
-end_index = 50000
+start_index = 80000
+end_index = 90000
 
 def download_image(x, output_dir):
     image_id = x["image_id"]
     url = x["url"]
     
-    # 创建会话保持连接
-    session = requests.Session()
-    session.headers.update({
+    save_path = output_dir / f"{image_id.replace('/', '_')}"
+    max_retries = 1
+    retry_delay = 1  # 初始延迟秒数
+
+    # 动态生成请求头
+    headers = {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
-    })
+    }
 
-    save_path = output_dir / f"{image_id.replace('/', '_')}"
-    max_retries = 3
-    retry_delay = 3  # 缩短初始延迟秒数
-
-    for attempt in range(max_retries):
+    for attempt in range(max_retries + 1):  # 包含初始尝试+重试次数
         try:
-            # 减少延迟，缩短到0.1-0.5秒之间
-            time.sleep(0.1 + random.random() * 0.4)  # 快速请求
+            time.sleep(0.1 + random.random() * 0.4)  # 保持随机延迟
 
-            response = session.get(url, timeout=10)
+            # 直接使用requests.get
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
-            # 验证图片有效性
+            # 验证图片
             image = PIL.Image.open(BytesIO(response.content))
             if image.mode != "RGB":
                 image = image.convert("RGB")
@@ -59,10 +58,10 @@ def download_image(x, output_dir):
             return save_path
 
         except requests.exceptions.HTTPError as e:
-            if response.status_code == 429:  # 处理频率限制
+            if response.status_code == 429:  # 频率限制处理
                 wait_time = retry_delay * (attempt + 1)
                 logger.warning(f"Rate limited: {image_id}. Retrying in {wait_time}s (Attempt {attempt+1}/{max_retries})")
-                time.sleep(wait_time + random.uniform(0, 2))  # 添加随机抖动
+                time.sleep(wait_time + random.uniform(0, 2))
                 continue
             logger.error(f"{image_id} : HTTP {response.status_code} - {str(e)}")
             return None
@@ -70,7 +69,7 @@ def download_image(x, output_dir):
             logger.error(f"{image_id} : {type(e).__name__} - {str(e)}")
             return None
 
-    logger.error(f"{image_id} : Failed after {max_retries} attempts")
+    logger.error(f"{image_id} : Failed after {max_retries + 1} attempts")
     return None
 
 

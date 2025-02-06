@@ -92,6 +92,7 @@ def query_gpt_with_images(
     ],
 )
     print(completion.choices[0].message.content)
+    return completion.choices[0].message.content
 
 
 def search_most_similar_images(
@@ -149,10 +150,9 @@ def display_results(
         cell_id = cell_id_list[indices[0][i]]
         print(f"图片 ID: {image_id}, 坐标: {coordinates}, 相似度: {distances[0][i]:.4f}, H3 单元: {cell_id}")
 
-def main():
+def GeoLocRAG(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
     embedding_dir = os.curdir  # 修改为实际文件夹路径
-    query_image_path = r"query.png"  # 修改为查询图片路径
 
     # 加载嵌入数据
     image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir)
@@ -176,7 +176,7 @@ def main():
     prompt_template = f"这是一张查询图片,假如你是一位图像地理定位方面的专家,请你结合你自己的知识,给出对这张图片地理坐标的猜测.这些是检索库中与其相似度最高的{k}张图片的地理坐标:{most_similar_coords},这些是与其相似度最低的{k}张的图片的地理坐标:{least_similar_coords},请注意查询图片并不在其中,所以不要直接使用这些坐标,而是作为参考,请你结合以上坐标信息,图像体现的地理位置特征以及你自己具备的知识,在推理后给出一个经过推理与计算的对查询图片地理坐标的猜测答案.你的答案必须在第一行以(LAT, LON)格式给出,不可为空,而后是你的推理思考过程."
     print("prompt: ",prompt_template)
     print("*******-----------------********")
-    query_gpt_with_images(query_image_path, prompt_template)
+    return query_gpt_with_images(query_image_path, prompt_template)
 
 if __name__ == "__main__":
-    main()
+    GeoLocRAG(r"query.png")
