@@ -3,116 +3,378 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Geolocation</title>
-    <!-- Bootstrap 5 CSS -->
+    <title>GeoVision | 图像地理定位</title>
+    <!-- 样式依赖 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Leaflet 地图库 -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        #map { 
-            height: 500px; 
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        :root {
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --glass-bg: rgba(255, 255, 255, 0.15);
         }
-        .upload-container {
-            margin: 2rem 0;
-            padding: 2rem;
-            background: #f8f9fa;
-            border-radius: 8px;
+
+        body {
+            background: var(--primary-gradient);
+            min-height: 100vh;
+            font-family: 'Segoe UI', system-ui, sans-serif;
         }
-        .custom-file-upload {
-            display: inline-block;
-            padding: 8px 16px;
-            background: #007bff;
-            color: white !important;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.3s;
+
+        .main-card {
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        .custom-file-upload:hover {
-            background: #0056b3;
+
+        /* 加载动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-        #loading {
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        /* 夜间模式 */
+        .dark-mode {
+            --primary-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            --glass-bg: rgba(0, 0, 0, 0.15);
+        }
+
+        /* 响应式布局 */
+        @media (max-width: 768px) {
+            #map {
+                height: 400px;
+                margin: 1rem;
+            }
+            
+            .upload-section {
+                padding: 1.5rem;
+            }
+        }
+
+        .upload-section {
+            padding: 2.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        #imageInput {
             display: none;
-            margin-top: 1rem;
+        }
+
+        .upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .upload-label:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .upload-label i {
+            font-size: 1.5rem;
+            color: #fff;
+        }
+
+        #map {
+            height: 600px;
+            border-radius: 12px;
+            margin: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .result-marker {
+            background: var(--primary-gradient);
+            border-radius: 50%;
+            width: 40px !important;
+            height: 40px !important;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            border: 2px solid white;
+        }
+
+        .result-marker::after {
+            content: '';
+            width: 12px;
+            height: 12px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .loading-spinner {
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.2em;
+        }
+
+        .attribution {
+            color: rgba(255, 255, 255, 0.7);
+            text-align: center;
+            padding: 1.5rem;
         }
     </style>
 </head>
 <body>
-    <div class="container mt-4">
-        <div class="card shadow">
-            <div class="card-header bg-primary text-white">
-                <h3 class="mb-0">Image Geolocation Predictor</h3>
+    <div class="container py-5 fade-in">
+        <div class="main-card">
+            <!-- 模式切换按钮 -->
+            <div class="position-absolute top-0 end-0 m-3">
+                <button id="themeToggle" class="btn btn-light btn-sm">
+                    <i class="fas fa-moon"></i>
+                </button>
             </div>
-            <div class="card-body">
-                <!-- 上传区域 -->
-                <div class="upload-container text-center">
-                    <input type="file" id="imageInput" accept="image/*" hidden>
-                    <label for="imageInput" class="custom-file-upload">
-                        <i class="fas fa-upload me-2"></i>选择图片文件
+            <!-- 上传区域 -->
+            <div class="upload-section">
+                <h1 class="text-white text-center mb-4 display-5 fw-bold">
+                    <i class="fas fa-map-marker-alt me-2"></i>GeoVision
+                </h1>
+                <div class="d-flex flex-column align-items-center">
+                    <input type="file" id="imageInput" accept="image/*">
+                    <label for="imageInput" class="upload-label">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <span>点击上传图片</span>
                     </label>
-                    <div id="loading" class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="text-muted mt-2">支持格式：JPEG, PNG</p>
+                    <p class="text-white-50 mt-3 mb-0">支持 JPEG, PNG, HEIC 格式</p>
                 </div>
-
-                <!-- 地图容器 -->
-                <div id="map" class="mt-4"></div>
             </div>
+
+            <!-- 地图容器 -->
+            <div id="map"></div>
+
+            <!-- 结果展示区域 -->
+            <div class="result-section p-4" style="display: none;">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <h5 class="text-white mb-3">地理信息</h5>
+                        <div class="info-card p-3 mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-map-marker-alt me-2"></i>
+                                <span class="fw-bold">位置信息</span>
+                            </div>
+                            <div id="locationInfo"></div>
+                        </div>
+
+                        <!-- 预测理由 -->
+                        <div class="info-card p-3 mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-comment-dots me-2"></i>
+                                <span class="fw-bold">预测理由</span>
+                            </div>
+                            <div id="predictionReason" class="text-white-50"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5 class="text-white mb-3">图像信息</h5>
+                        <div class="info-card p-3 mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-image me-2"></i>
+                                <span class="fw-bold">图像详情</span>
+                            </div>
+                            <div id="imageInfo"></div>
+                        </div>
+
+                        <!-- 图像处理控制 -->
+                        <div class="info-card p-3">
+                            <h6 class="text-white mb-3">图像处理</h6>
+                            <div class="d-grid gap-2">
+                                <button id="blurButton" class="btn btn-outline-light btn-sm">
+                                    <i class="fas fa-eye-slash me-2"></i>
+                                    模糊地理位置信息
+                                </button>
+                                <small class="text-white-50">点击后将对图像中的地理位置信息进行模糊处理</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 页脚声明 -->
+        <div class="attribution">
+            <small>Powered by OpenStreetMap | © 2023 GeoVision</small>
         </div>
     </div>
 
-    <!-- 依赖库 -->
+    <!-- 脚本依赖 -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
 
     <script>
-        // 初始化地图（修复加载问题）
+        // 夜间模式切换
+        const themeToggle = document.getElementById('themeToggle');
+        themeToggle.addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            themeToggle.querySelector('i').classList.toggle('fa-moon');
+            themeToggle.querySelector('i').classList.toggle('fa-sun');
+        });
+
+        // 显示结果区域
+        function showResultSection(data) {
+            const resultSection = document.querySelector('.result-section');
+            const locationInfo = document.getElementById('locationInfo');
+            const imageInfo = document.getElementById('imageInfo');
+            const predictionReason = document.getElementById('predictionReason');
+
+            // 填充位置信息
+            locationInfo.innerHTML = `
+                <p>纬度: ${data.lat.toFixed(6)}</p>
+                <p>经度: ${data.lng.toFixed(6)}</p>
+                <p>国家: ${data.country || '未知'}</p>
+                <p>城市: ${data.city || '未知'}</p>
+            `;
+
+            // 填充图像信息
+            imageInfo.innerHTML = `
+                <p>文件名: ${data.filename}</p>
+                <p>文件大小: ${(data.size / 1024).toFixed(2)} KB</p>
+                <p>分辨率: ${data.width} x ${data.height}</p>
+            `;
+
+            // 显示预测理由
+            predictionReason.textContent = data.message || '未提供预测理由';
+
+            resultSection.style.display = 'block';
+        }
+
+        // 图像模糊处理
+        document.getElementById('blurButton').addEventListener('click', async () => {
+            const file = document.getElementById('imageInput').files[0];
+            if (!file) {
+                showError('请先上传图片');
+                return;
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('/blur', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                } else {
+                    // 更新图像显示
+                    const imgPreview = document.getElementById('imagePreview');
+                    if (imgPreview) {
+                        imgPreview.src = data.blurred_image_url;
+                    }
+                    showSuccess('图像已成功模糊处理');
+                }
+            } catch (error) {
+                showError('请求失败: ' + error.message);
+            }
+        });
+
+        function showSuccess(message) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 m-3 toast align-items-center text-white bg-success border-0';
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            new bootstrap.Toast(toast).show();
+        }
+    </script>
+
+    <script>
+        // 初始化地图（现代主题）
         const map = L.map('map', {
-            // 使用可靠的瓦片源
-            layers: [L.tileLayer('https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+            layers: [L.tileLayer('https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
+                attribution: '© 高德地图'
             })]
-        }).setView([40.7128, -74.0060], 3);
+        }).setView([30.5, 114.3], 3);
+
+        // 自定义地图样式
+        map.attributionControl.setPrefix('');
 
         // 文件上传处理
         document.getElementById('imageInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            // 显示加载动画
-            document.getElementById('loading').style.display = 'inline-block';
-
-            const formData = new FormData();
-            formData.append('file', file);
 
             try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
                 const response = await fetch('/upload', { method: 'POST', body: formData });
                 const data = await response.json();
-                
+
                 if (data.error) {
-                    alert(`错误: ${data.error}`);
+                    showError(data.error);
                 } else {
                     // 清除旧标记
-                    map.eachLayer(layer => {
-                        if (layer instanceof L.Marker) map.removeLayer(layer);
+                    map.eachLayer(layer => layer instanceof L.Marker && map.removeLayer(layer));
+
+                    // 创建自定义标记
+                    const marker = L.marker([data.lat, data.lng], {
+                        icon: L.divIcon({ className: 'result-marker' })
+                    }).addTo(map);
+
+                    // 平滑定位动画
+                    map.flyTo([data.lat, data.lng], 15, {
+                        animate: true,
+                        duration: 1.5
                     });
 
-                    // 添加新标记
-                    L.marker([data.lat, data.lng])
-                        .addTo(map)
-                        .bindPopup('<b>预测位置</b><br>纬度: ' + data.lat.toFixed(4) + '<br>经度: ' + data.lng.toFixed(4))
-                        .openPopup();
-                    map.setView([data.lat, data.lng], 15);
+                    // 信息弹窗
+                    marker.bindPopup(`
+                        <div class="p-2">
+                            <h6 class="mb-2">📍 预测位置</h6>
+                            <table class="table table-sm">
+                                <tr><td>纬度</td><td>${data.lat.toFixed(6)}</td></tr>
+                                <tr><td>经度</td><td>${data.lng.toFixed(6)}</td></tr>
+                            </table>
+                        </div>
+                    `).openPopup();
                 }
             } catch (error) {
-                alert('请求失败: ' + error.message);
+                showError('请求失败: ' + error.message);
             } finally {
                 document.getElementById('loading').style.display = 'none';
             }
         });
+
+        function showError(message) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 m-3 toast align-items-center text-white bg-danger border-0';
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            new bootstrap.Toast(toast).show();
+        }
     </script>
 </body>
 </html>

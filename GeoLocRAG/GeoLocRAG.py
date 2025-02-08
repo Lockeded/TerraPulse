@@ -35,7 +35,7 @@ def load_embeddings(embedding_dir: str) -> Tuple[np.ndarray, List[str], List[str
     cell_id_list = []
 
     for file_path in embedding_files:
-        embedding_data = torch.load(file_path)
+        embedding_data = torch.load(file_path, weights_only=True)
         image_embeddings_list.append(embedding_data["image"].cpu().numpy())
         text_list.extend(embedding_data["text"])
         image_id_list.extend(embedding_data["image_id"])
@@ -150,9 +150,9 @@ def display_results(
         cell_id = cell_id_list[indices[0][i]]
         print(f"图片 ID: {image_id}, 坐标: {coordinates}, 相似度: {distances[0][i]:.4f}, H3 单元: {cell_id}")
 
-def GeoLocRAG(query_image_path):
+def predict(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
-    embedding_dir = os.curdir  # 修改为实际文件夹路径
+    embedding_dir = os.path.join(os.curdir, "GeoLocRAG")  # 修改为实际文件夹路径
 
     # 加载嵌入数据
     image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir)
@@ -179,4 +179,4 @@ def GeoLocRAG(query_image_path):
     return query_gpt_with_images(query_image_path, prompt_template)
 
 if __name__ == "__main__":
-    GeoLocRAG(r"query.png")
+    predict(r"query.png")
