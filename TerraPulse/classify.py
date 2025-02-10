@@ -1,11 +1,10 @@
 from pathlib import Path
-from math import ceil
 import pandas as pd
 import torch
 from tqdm.auto import tqdm
 
-from classification.train_base import MultiPartitioningClassifier
-from classification.dataset import FiveCropImageDataset
+from .train_base import MultiPartitioningClassifier
+from .classification.dataset import FiveCropImageDataset
 
 
 def load_model(checkpoint_path: Path, hparams_path: Path, use_gpu: bool):
@@ -21,21 +20,13 @@ def load_model(checkpoint_path: Path, hparams_path: Path, use_gpu: bool):
     return model
 
 
-def init_dataloader(image_dir: Path, batch_size: int, num_workers: int):
-    """Initialize the DataLoader for the dataset."""
-    dataloader = torch.utils.data.DataLoader(
-        FiveCropImageDataset(meta_csv=None, image_dir=image_dir),
-        batch_size=ceil(batch_size / 5),  # Adjusting batch size for 5 crops
-        shuffle=False,
-        num_workers=num_workers,
-    )
-    if len(dataloader.dataset) == 0:
-        raise RuntimeError(f"No images found in {image_dir}")
-    return dataloader
+def run_inference_for_single_image(model, image_path: Path, use_gpu: bool, single_image: bool):
+    """Run inference on a single image."""
+    # Load the image and apply the five-crop transformation
+    dataset = FiveCropImageDataset(meta_csv=None, image_dir=image_path, is_single_image=single_image)  # Parent folder for dataset
+    img_paths = [image_path]
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
 
-
-def run_inference(model, dataloader, use_gpu: bool):
-    """Run inference on the dataset."""
     rows = []
     for X in tqdm(dataloader):
         if use_gpu:
@@ -60,37 +51,31 @@ def run_inference(model, dataloader, use_gpu: bool):
     return pd.DataFrame.from_records(rows)
 
 
-def save_results(df: pd.DataFrame, checkpoint_path: Path, image_dir: Path):
+def save_results(df: pd.DataFrame, checkpoint_path: Path, image_path: Path):
     """Save the inference results to a CSV file."""
-    df.set_index(keys=["img_id", "p_key"], inplace=True)
-    fout = checkpoint_path.parent / f"inference_{image_dir.stem}.csv"
+    df.set_index(keys=["img_id", "p_key"])
+    fout = checkpoint_path.parent / f"inference_{image_path.stem}.csv"
     print("Write output to", fout)
     df.to_csv(fout)
 
 
-def main(checkpoint: Path, hparams: Path, image_dir: Path, use_gpu: bool, batch_size: int, num_workers: int):
-    """Main function to run inference and save the results."""
+def classify(checkpoint: Path, hparams: Path, image_path: Path, use_gpu: bool, is_single_image: bool = False):
+    """Main function to run inference on a single image and save the results."""
     print("Load model from ", checkpoint)
     model = load_model(checkpoint, hparams, use_gpu)
 
-    print("Init dataloader")
-    dataloader = init_dataloader(image_dir, batch_size, num_workers)
+    print("Run inference on single image:", image_path)
+    df = run_inference_for_single_image(model, image_path, use_gpu, is_single_image)
 
-    print("Number of images: ", len(dataloader.dataset))
-
-    df = run_inference(model, dataloader, use_gpu)
-
-    print(df)
-    save_results(df, checkpoint, image_dir)
+    save_results(df, checkpoint, image_path)
+    return df
 
 
 if __name__ == '__main__':
     # Example of how to call the main function directly
     checkpoint_path = Path("models/base_M/epoch=014-val_loss=18.4833.ckpt")
     hparams_path = Path("models/base_M/hparams.yaml")
-    image_dir = Path("resources/images/im2gps")
-    use_gpu = True  # Set to False if you want to run on CPU
-    batch_size = 64
-    num_workers = 4
+    image_path = Path("inference")  # Path to the image you want to predict
+    use_gpu = False  # Set to False if you want to run on CPU
 
-    main(checkpoint_path, hparams_path, image_dir, use_gpu, batch_size, num_workers)
+    classify(checkpoint_path, hparams_path, image_path, use_gpu)

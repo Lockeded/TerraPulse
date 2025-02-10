@@ -10,9 +10,9 @@ import torchvision
 import pytorch_lightning as pl
 import pandas as pd
 
-from classification import utils_global
-from classification.s2_utils import Partitioning, Hierarchy
-from classification.dataset import MsgPackIterableDatasetMultiTargetWithDynLabels
+from .classification import utils_global
+from .classification.s2_utils import Partitioning, Hierarchy
+from .classification.dataset import MsgPackIterableDatasetMultiTargetWithDynLabels
 
 
 class MultiPartitioningClassifier(pl.LightningModule):

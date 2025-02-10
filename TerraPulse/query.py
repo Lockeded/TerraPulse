@@ -7,6 +7,8 @@ from PIL import Image
 from typing import List, Tuple, Dict
 from openai import OpenAI
 import base64
+from .classify import classify
+from pathlib import Path
 
 with open("sk.txt", "r") as f:
         key = f.read().strip()
@@ -20,6 +22,42 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"  # 防止冲突报错
 
+
+def load_embeddings_(embedding_dir: str, classify_df, target_p_key: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
+    """加载所有嵌入文件，并提取图像嵌入、文本、图片 ID 和 H3 单元 ID，根据指定 p_key 过滤数据。"""
+    target_p_key_dict = {"coarse": 0, "middle": 1, "fine": 2, "hierachy": 0}
+    # 获取 classify_df 中指定 p_key 的所有 pred_class
+    print(classify_df, target_p_key)
+    target_pred_classes = classify_df[classify_df['p_key'] == target_p_key]['pred_class'].tolist()
+    print(target_pred_classes)
+    # 加载嵌入文件
+    embedding_files = [
+        os.path.join(embedding_dir, f) 
+        for f in os.listdir(embedding_dir) 
+        if f.startswith("clip_embeddings_batch_") and f.endswith(".pt")
+    ]
+
+    image_embeddings_list = []
+    text_list = []
+    image_id_list = []
+    cell_id_list = []
+
+    for file_path in embedding_files:
+        embedding_data = torch.load(file_path, weights_only=True)
+
+        # 过滤符合 target_pred_classes 的数据
+        for idx, cell_id in enumerate(embedding_data["cell_id"]):
+            # cell_id 是一个数组，有三个元素，分别对应不同的类别
+            if(cell_id is None):
+                continue
+            if any(pred_class in target_pred_classes for pred_class in cell_id):
+                image_embeddings_list.append(embedding_data["image"][idx].cpu().numpy())
+                text_list.append(embedding_data["text"][idx])
+                image_id_list.append(embedding_data["image_id"][idx])
+                cell_id_list.append(cell_id)
+
+    image_embeddings = np.concatenate(image_embeddings_list, axis=0)
+    return image_embeddings, text_list, image_id_list, cell_id_list
 
 def load_embeddings(embedding_dir: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
     """加载所有嵌入文件，并提取图像嵌入、文本、图片 ID 和 H3 单元 ID。"""
@@ -64,6 +102,17 @@ def encode_image_2_base64(image_path: str) -> str:
         image_bytes = f.read()
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
     return image_base64
+
+def classify_s2cell(image_path: str) -> str:
+    """使用分类模型预测图片的 H3 单元 ID。"""
+    checkpoint_path = Path("TerraPulse/models/base_M/epoch=014-val_loss=18.4833.ckpt")
+    hparams_path = Path("TerraPulse/models/base_M/hparams.yaml")
+    use_gpu = False  # Set to False if you want to run on CPU
+    image_path = Path(image_path)  # Path to the image you want to predict
+    df = classify(checkpoint_path, hparams_path, image_path, use_gpu, is_single_image=True)
+    print(df)
+    return df
+    
 
 def query_gpt_with_images(
     query_image_path: str,
@@ -152,9 +201,10 @@ def display_results(
 
 def predict(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
-    embedding_dir = os.path.join(os.curdir, "GeoLocRAG")  # 修改为实际文件夹路径
-
+    embedding_dir = os.path.join(os.curdir, "TerraPulse")  # 修改为实际文件夹路径
+    classify_df = classify_s2cell(query_image_path)
     # 加载嵌入数据
+    # image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir, classify_df, target_p_key="hierarchy")
     image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir)
 
     # 构建 FAISS 索引
@@ -179,4 +229,4 @@ def predict(query_image_path):
     return query_gpt_with_images(query_image_path, prompt_template)
 
 if __name__ == "__main__":
-    predict(r"query.png")
+    predict(r"TerraPulse/resources/query.jpg")

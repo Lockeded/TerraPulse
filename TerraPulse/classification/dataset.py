@@ -190,33 +190,46 @@ class FiveCropImageDataset(torch.utils.data.Dataset):
         meta_csv: Union[str, Path, None],
         image_dir: Union[str, Path],
         img_id_col: Union[str, int] = "img_id",
-        allowed_extensions: List[str] = ["jpg", "jpeg", "png"]
+        allowed_extensions: List[str] = ["jpg", "jpeg", "png"], 
+        is_single_image: bool = False,
     ):
         if isinstance(image_dir, str):
             image_dir = Path(image_dir)
         self.image_dir = image_dir
         self.img_id_col = img_id_col
+        self.is_single_image = is_single_image  # 保存参数
         self.meta_info = None
-        if meta_csv is not None:
-            print(f"Read {meta_csv}")
-            self.meta_info = pd.read_csv(meta_csv)
-            self.meta_info.columns = map(str.lower, self.meta_info.columns)
-            # rename column names if necessary to use existing data
-            if "lat" in self.meta_info.columns:
-                self.meta_info.rename(columns={"lat": "latitude"}, inplace=True)
-            if "lon" in self.meta_info.columns:
-                self.meta_info.rename(columns={"lon": "longitude"}, inplace=True)
-            self.meta_info["img_path"] = self.meta_info[img_id_col].apply(
-                lambda img_id: str(self.image_dir / img_id)
-            )
-        else:
-            image_files = []
-            for ext in allowed_extensions:
-                image_files.extend([str(p) for p in self.image_dir.glob(f"**/*.{ext}")])
-            self.meta_info = pd.DataFrame(image_files, columns=["img_path"])
+
+        if self.is_single_image:  # 如果是指定的单张图片
+            if meta_csv is not None:
+                raise ValueError("meta_csv should be None when is_single_image is True.")
+            # Assuming the image_dir is a path to a single image
+            self.meta_info = pd.DataFrame([str(image_dir)], columns=["img_path"])
             self.meta_info[self.img_id_col] = self.meta_info["img_path"].apply(
                 lambda x: Path(x).stem
             )
+        else:
+            if meta_csv is not None:
+                print(f"Read {meta_csv}")
+                self.meta_info = pd.read_csv(meta_csv)
+                self.meta_info.columns = map(str.lower, self.meta_info.columns)
+                # rename column names if necessary to use existing data
+                if "lat" in self.meta_info.columns:
+                    self.meta_info.rename(columns={"lat": "latitude"}, inplace=True)
+                if "lon" in self.meta_info.columns:
+                    self.meta_info.rename(columns={"lon": "longitude"}, inplace=True)
+                self.meta_info["img_path"] = self.meta_info[img_id_col].apply(
+                    lambda img_id: str(self.image_dir / img_id)
+                )
+            else:
+                image_files = []
+                for ext in allowed_extensions:
+                    image_files.extend([str(p) for p in self.image_dir.glob(f"**/*.{ext}")])
+                self.meta_info = pd.DataFrame(image_files, columns=["img_path"])
+                self.meta_info[self.img_id_col] = self.meta_info["img_path"].apply(
+                    lambda x: Path(x).stem
+                )
+
         self.tfm = torchvision.transforms.Compose(
             [
                 torchvision.transforms.ToTensor(),
