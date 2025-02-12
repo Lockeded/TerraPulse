@@ -1,17 +1,14 @@
-import msgpack
+import requests
 import pandas as pd
-import PIL
-from PIL import ImageFile
-from argparse import ArgumentParser
-import sys
+from PIL import ImageFile, Image
+
 from io import BytesIO
 from pathlib import Path
 import time
 import random
-from multiprocessing import Pool
-from functools import partial
-import logging
-import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
+import threading
 
 # 请求头配置
 USER_AGENTS = [
@@ -21,159 +18,115 @@ USER_AGENTS = [
 ]
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
-start_index = 80000
-end_index = 90000
 
-def download_image(x, output_dir):
-    image_id = x["image_id"]
-    url = x["url"]
-    
-    save_path = output_dir / f"{image_id.replace('/', '_')}"
-    max_retries = 1
-    retry_delay = 1  # 初始延迟秒数
+# 下载图片函数
+def download_image(image_id, url, output_dir, count, thread_id, session):
+    save_path = output_dir / f"{image_id.replace('/', '_')}.jpg"
 
-    # 动态生成请求头
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
     }
 
-    for attempt in range(max_retries + 1):  # 包含初始尝试+重试次数
-        try:
-            time.sleep(0.1 + random.random() * 0.4)  # 保持随机延迟
+    retry_count = 0
+    max_retries = 3
+    retry_delay = 3 + random.uniform(0.5, 3)
 
-            # 直接使用requests.get
-            response = requests.get(url, headers=headers, timeout=10)
+    while retry_count < max_retries:
+        try:
+            time.sleep(random.uniform(1, 3))
+
+            response = session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
-            # 验证图片
-            image = PIL.Image.open(BytesIO(response.content))
+            image = Image.open(BytesIO(response.content))
             if image.mode != "RGB":
                 image = image.convert("RGB")
 
             save_path.parent.mkdir(parents=True, exist_ok=True)
             image.save(save_path, "JPEG")
-            logger.info(f"{image_id} : Downloaded")
-            return save_path
+            
+            count += 1
+            tqdm.write(f"Thread {thread_id} - Downloaded {count}: {image_id}")
+            return count
 
         except requests.exceptions.HTTPError as e:
-            if response.status_code == 429:  # 频率限制处理
-                wait_time = retry_delay * (attempt + 1)
-                logger.warning(f"Rate limited: {image_id}. Retrying in {wait_time}s (Attempt {attempt+1}/{max_retries})")
-                time.sleep(wait_time + random.uniform(0, 2))
-                continue
-            logger.error(f"{image_id} : HTTP {response.status_code} - {str(e)}")
-            return None
+            if response.status_code == 429:
+                tqdm.write(f"Thread {thread_id} - Rate limit hit for {image_id}, retrying...")
+                retry_count += 1
+                time.sleep(retry_delay)
+                retry_delay *= 2 + random.uniform(0.5, 3)
+            else:
+                tqdm.write(f"Thread {thread_id} - HTTP Error {response.status_code} for {image_id}: {str(e)}")
+                return count
         except Exception as e:
-            logger.error(f"{image_id} : {type(e).__name__} - {str(e)}")
-            return None
+            tqdm.write(f"Thread {thread_id} - {image_id} : {type(e).__name__} - {str(e)}")
+            return count
 
-    logger.error(f"{image_id} : Failed after {max_retries + 1} attempts")
-    return None
+    tqdm.write(f"Thread {thread_id} - Max retries reached for {image_id}, skipping...")
+    return count
 
+# 读取CSV文件并返回指定范围的数据
+def load_image_data(url_csv: Path, start_index=0, end_index=None):
+    df = pd.read_csv(url_csv, names=["image_id", "url"], header=None)
+    df = df.dropna()
+    return df.iloc[start_index:end_index]
 
-class ImageDataloader:
-    def __init__(self, url_csv: Path, shuffle=False, nrows=None, start_index=0, end_index=None):
-        logger.info("Read dataset")
-        self.df = pd.read_csv(
-            url_csv, names=["image_id", "url"], header=None, nrows=nrows
-        )
-        self.df = self.df.dropna()
-        if shuffle:
-            logger.info("Shuffle images")
-            self.df = self.df.sample(frac=1, random_state=10)
+# 分割数据给每个线程
+def split_data(image_data, num_threads):
+    avg_size = len(image_data) // num_threads
+    data_splits = []
+    for i in range(num_threads):
+        start = i * avg_size
+        end = (i + 1) * avg_size if i < num_threads - 1 else len(image_data)
+        data_splits.append(image_data.iloc[start:end])
+    return data_splits
 
-        # Apply the index range filter
-        self.df = self.df.iloc[start_index:end_index]
-        logger.info(f"Number of URLs: {len(self.df.index)}")
+# 线程下载函数
+def thread_download(data_chunk, output_dir, start_index, thread_id, total_count, session):
+    count = 0
+    for index, row in data_chunk.iterrows():
+        image_id, url = row["image_id"], row["url"]
+        count = download_image(image_id, url, output_dir, count, thread_id, session)
+        total_count[0] += 1
+        with total_count_lock:
+            progress_bar.set_description(f"Progress: {total_count[0]}/{len(image_data)}")
+            progress_bar.update(1)
+    return count
 
-    def __len__(self):
-        return len(self.df.index)
-
-    def __iter__(self):
-        for image_id, url in zip(self.df["image_id"].values, self.df["url"].values):
-            yield {"image_id": image_id, "url": url}
-
-
-def parse_args():
-    args = ArgumentParser()
-    args.add_argument(
-        "--threads",
-        type=int,
-        default=8,  # 增加线程数
-        help="Number of concurrent download threads (建议不超过8)"
-    )
-    args.add_argument(
-        "--output",
-        type=Path,
-        default=Path("D:/mp16"),
-        help="Output directory where images are stored",
-    )
-    args.add_argument(
-        "--url_csv",
-        type=Path,
-        default=Path("resources/mp16_urls.csv"),
-        help="CSV with Flickr image id and URL for downloading",
-    )
-    args.add_argument(
-        "--size",
-        type=int,
-        default=320,
-        help="Rescale image to a minimum edge size of SIZE",
-    )
-    args.add_argument("--nrows", type=int)
-    args.add_argument(
-        "--shuffle", action="store_true", help="Shuffle list of URLs before downloading"
-    )
-    args.add_argument(
-        "--start_index", type=int, default=start_index, help="Index to start downloading images"
-    )
-    args.add_argument(
-        "--end_index", type=int, default=end_index, help="Index to stop downloading images"
-    )
-    return args.parse_args()
-
-
+# 主函数
 def main():
-    image_loader = ImageDataloader(
-        args.url_csv, nrows=args.nrows, shuffle=args.shuffle, 
-        start_index=args.start_index, end_index=args.end_index
-    )
+    start_index = 100000
+    end_index = 120000
+    url_csv = "resources/mp16_urls.csv"
+    output_dir = Path("D:/mp16/downloads")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    download_dir = args.output / "downloads"
-    download_dir.mkdir(parents=True, exist_ok=True)
+    global image_data
+    image_data = load_image_data(url_csv, start_index=start_index, end_index=end_index)
 
-    logger.info("Downloading images...")
-    with Pool(args.threads) as p:
-        # 使用imap_unordered加快处理速度
-        downloaded_images = list(
-            p.imap_unordered(
-                partial(download_image, output_dir=download_dir), 
-                image_loader,
-                chunksize=2  # 减少任务分块大小
-            )
-        )
+    num_threads = 16
 
-    downloaded_images = [x for x in downloaded_images if x is not None]
-    logger.info(f"Successfully downloaded {len(downloaded_images)} images")
+    global total_count_lock
+    total_count_lock = threading.Lock()
+    total_count = [0]
 
+    global progress_bar
+    progress_bar = tqdm(total=len(image_data), desc="Progress", ncols=100)
 
-logger = logging.getLogger("ImageDownloader")
+    with ThreadPoolExecutor(max_workers=num_threads) as executor:
+        futures = []
+        for i, data_chunk in enumerate(split_data(image_data, num_threads)):
+            session = requests.Session()
+            futures.append(executor.submit(thread_download, data_chunk, output_dir, start_index + i * len(data_chunk), i + 1, total_count, session))
+
+        for future in as_completed(futures):
+            future.result()
+
+    progress_bar.close()
+    tqdm.write("Download completed.")
+
 if __name__ == "__main__":
-    args = parse_args()
-
-    logger.setLevel(logging.INFO)
-    fh = logging.FileHandler(str(args.output / "writer.log"))
-    fh.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-
-    sys.exit(main())
+    import threading
+    main()

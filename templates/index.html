@@ -12,7 +12,9 @@
         :root {
             --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             --glass-bg: rgba(255, 255, 255, 0.15);
-            --content-spacing: 1.5rem;
+
+            --content-spacing: 2rem;
+            --text-color: rgba(255, 255, 255, 0.9);
         }
 
 
@@ -20,14 +22,18 @@
             background: var(--primary-gradient);
             min-height: 100vh;
             font-family: 'Segoe UI', system-ui, sans-serif;
+            color: var(--text-color);
         }
 
         .main-card {
             display: grid;
+            grid-template-columns: 1fr;
             grid-template-rows: auto 1fr auto;
             min-height: 90vh;
             padding: var(--content-spacing);
             gap: var(--content-spacing);
+            max-width: 1200px;
+            margin: 0 auto;
         }
 
         /* 加载动画 */
@@ -51,7 +57,8 @@
             #map {
                 height: 350px;
             }
-            
+
+
             .upload-section {
                 padding: 1.5rem;
             }
@@ -70,13 +77,18 @@
         }
 
         .upload-section {
-            padding: 3rem 1rem;
-            border-radius: 16px;
+
+
+            padding: 4rem 2rem;
+            border-radius: 20px;
             background: rgba(255,255,255,0.1);
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
         }
+
         .upload-section:hover {
-            transform: translateY(-2px);
+
+            transform: translateY(-5px);
         }
 
         #imageInput {
@@ -88,36 +100,44 @@
             align-items: center;
             justify-content: center;
             gap: 12px;
-            padding: 1rem 2rem;
+
+            padding: 1.5rem 3rem;
             background: rgba(255, 255, 255, 0.1);
             border: 2px dashed rgba(255, 255, 255, 0.3);
-            border-radius: 12px;
+
+            border-radius: 15px;
             color: white;
             cursor: pointer;
             transition: all 0.3s ease;
+            font-size: 1.2rem;
         }
 
         .upload-label:hover {
             background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
+
+            transform: translateY(-5px);
         }
 
         .upload-label i {
-            font-size: 1.5rem;
+
+            font-size: 2rem;
             color: #fff;
         }
 
         #map {
             height: 600px;
-            border-radius: 12px;
-            margin: 2rem;
+
+
+            border-radius: 20px;
+            margin: 2rem 0;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
         #map-container {
             position: relative;
-            border-radius: 12px;
+
+            border-radius: 20px;
             overflow: hidden;
             box-shadow: 0 8px 32px rgba(0,0,0,0.1);
             height: 60vh;
@@ -160,31 +180,42 @@
 
         .info-card {
             background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
-            backdrop-filter: blur(8px);
-            border-radius: 12px;
-            padding: 1.25rem;
+
+
+
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
             transition: transform 0.3s ease;
         }
 
         .info-card:hover {
-            transform: translateY(-3px);
+
+            transform: translateY(-5px);
         }
 
         .info-card i {
             color: #a3a8ff;
+            font-size: 1.5rem;
         }
 
         .attribution {
             text-align: center;
             color: rgba(255, 255, 255, 0.7);
         }
-                /* 优化信息展示 */
-                .data-item {
+
+
+
+        /* 优化信息展示 */
+        .data-item {
             display: grid;
-            grid-template-columns: 1.5rem 1fr;
+
+            grid-template-columns: 2rem 1fr;
             align-items: center;
-            gap: 0.75rem;
-            padding: 0.75rem 0;
+
+
+            gap: 1rem;
+            padding: 1rem 0;
             border-bottom: 1px solid rgba(255,255,255,0.1);
         }
 
@@ -192,12 +223,16 @@
         .action-button {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+
+            gap: 1rem;
             width: 100%;
-            padding: 0.875rem 1.25rem;
+
+            padding: 1rem 1.5rem;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 1.1rem;
         }
 
+       
         @media (max-width: 768px) {
             .main-card {
                 min-height: auto;
