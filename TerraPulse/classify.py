@@ -20,7 +20,7 @@ def load_model(checkpoint_path: Path, hparams_path: Path, use_gpu: bool):
     return model
 
 
-def run_inference_for_single_image(model, image_path: Path, use_gpu: bool, single_image: bool):
+def run_inference(model, image_path: Path, use_gpu: bool, single_image: bool):
     """Run inference on a single image."""
     # Load the image and apply the five-crop transformation
     dataset = FiveCropImageDataset(meta_csv=None, image_dir=image_path, is_single_image=single_image)  # Parent folder for dataset
@@ -65,7 +65,7 @@ def classify(checkpoint: Path, hparams: Path, image_path: Path, use_gpu: bool, i
     model = load_model(checkpoint, hparams, use_gpu)
 
     print("Run inference on single image:", image_path)
-    df = run_inference_for_single_image(model, image_path, use_gpu, is_single_image)
+    df = run_inference(model, image_path, use_gpu, is_single_image)
 
     save_results(df, checkpoint, image_path)
     return df

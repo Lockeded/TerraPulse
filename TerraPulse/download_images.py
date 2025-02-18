@@ -31,11 +31,11 @@ def download_image(image_id, url, output_dir, count, thread_id, session):
 
     retry_count = 0
     max_retries = 3
-    retry_delay = 3 + random.uniform(0.5, 3)
+    retry_delay = 5 + random.uniform(1, 3)
 
     while retry_count < max_retries:
         try:
-            time.sleep(random.uniform(1, 3))
+            time.sleep(random.uniform(2,4))
 
             response = session.get(url, headers=headers, timeout=10)
             response.raise_for_status()
@@ -56,7 +56,7 @@ def download_image(image_id, url, output_dir, count, thread_id, session):
                 tqdm.write(f"Thread {thread_id} - Rate limit hit for {image_id}, retrying...")
                 retry_count += 1
                 time.sleep(retry_delay)
-                retry_delay *= 2 + random.uniform(0.5, 3)
+                retry_delay *= 2 + random.uniform(1, 3)
             else:
                 tqdm.write(f"Thread {thread_id} - HTTP Error {response.status_code} for {image_id}: {str(e)}")
                 return count
@@ -97,8 +97,8 @@ def thread_download(data_chunk, output_dir, start_index, thread_id, total_count,
 
 # 主函数
 def main():
-    start_index = 100000
-    end_index = 120000
+    start_index = 177070
+    end_index = 177070
     url_csv = "resources/mp16_urls.csv"
     output_dir = Path("D:/mp16/downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -106,7 +106,7 @@ def main():
     global image_data
     image_data = load_image_data(url_csv, start_index=start_index, end_index=end_index)
 
-    num_threads = 16
+    num_threads = 32
 
     global total_count_lock
     total_count_lock = threading.Lock()

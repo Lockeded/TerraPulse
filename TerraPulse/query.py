@@ -21,66 +21,72 @@ client = OpenAI(
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model, preprocess = clip.load("ViT-B/32", device=device)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"  # 防止冲突报错
+embedding_path = os.path.join(os.curdir, "TerraPulse/clip_embeddings.pt")
+embedding_data = torch.load(embedding_path, weights_only=True)
 
+def load_embeddings() -> Tuple[np.ndarray, List[str], List[str], List[str]]:
+    """加载嵌入数据。"""
+    image_embeddings_list = []
+    text_list = []
+    image_id_list = []
+    cell_id_list = []
 
-def load_embeddings_(embedding_dir: str, classify_df, target_p_key: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
-    """加载所有嵌入文件，并提取图像嵌入、文本、图片 ID 和 H3 单元 ID，根据指定 p_key 过滤数据。"""
+    image_embeddings_list = (embedding_data["image"].cpu().numpy())
+    text_list = (embedding_data["text"])
+    image_id_list = (embedding_data["image_id"])
+    cell_id_list = (embedding_data["cell_id"])
+
+    image_embeddings = np.concatenate(image_embeddings_list, axis=0)
+    return image_embeddings, text_list, image_id_list, cell_id_list
+
+def filter_embeddings(classify_df, target_p_key: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
+    global embedding_data
+    """根据地理层级过滤匹配cell_id的嵌入数据"""
+    # 地理层级映射字典
     target_p_key_dict = {"coarse": 0, "middle": 1, "fine": 2, "hierachy": 0}
-    # 获取 classify_df 中指定 p_key 的所有 pred_class
-    print(classify_df, target_p_key)
+    
+    # 验证输入参数有效性
+    if target_p_key not in target_p_key_dict:
+        raise ValueError(f"无效的target_p_key: {target_p_key}，有效值为{list(target_p_key_dict.keys())}")
+    
+    # 获取目标层级索引和对应的预测类别
+    level_index = target_p_key_dict[target_p_key]
     target_pred_classes = classify_df[classify_df['p_key'] == target_p_key]['pred_class'].tolist()
-    print(target_pred_classes)
-    # 加载嵌入文件
-    embedding_files = [
-        os.path.join(embedding_dir, f) 
-        for f in os.listdir(embedding_dir) 
-        if f.startswith("clip_embeddings_batch_") and f.endswith(".pt")
-    ]
+    
+    # 初始化存储容器
+    filtered_embeddings = []
+    filtered_texts = []
+    filtered_image_ids = []
+    filtered_cell_ids = []
+    
+    # 遍历所有样本进行过滤
+    for i in range(len(embedding_data["image_embeddings"])):
+        # 获取当前样本的cell_id层级值
+        current_cell_id = embedding_data["cell_ids"][i]
+        
+        # 跳过无效的cell_id数据
+        if current_cell_id is None or len(current_cell_id) <= level_index:
+            continue
+            
+        # 提取对应层级的cell_id值
+        level_cell_id = current_cell_id[level_index]
+        
+        # 进行匹配过滤
+        if str(level_cell_id) in map(str, target_pred_classes):
+            filtered_embeddings.append(embedding_data["image_embeddings"][i].numpy())
+            filtered_texts.append(embedding_data["texts"][i])
+            filtered_image_ids.append(embedding_data["image_ids"][i])
+            filtered_cell_ids.append(embedding_data["cell_ids"][i])
 
-    image_embeddings_list = []
-    text_list = []
-    image_id_list = []
-    cell_id_list = []
-
-    for file_path in embedding_files:
-        embedding_data = torch.load(file_path, weights_only=True)
-
-        # 过滤符合 target_pred_classes 的数据
-        for idx, cell_id in enumerate(embedding_data["cell_id"]):
-            # cell_id 是一个数组，有三个元素，分别对应不同的类别
-            if(cell_id is None):
-                continue
-            if any(pred_class in target_pred_classes for pred_class in cell_id):
-                image_embeddings_list.append(embedding_data["image"][idx].cpu().numpy())
-                text_list.append(embedding_data["text"][idx])
-                image_id_list.append(embedding_data["image_id"][idx])
-                cell_id_list.append(cell_id)
-
-    image_embeddings = np.concatenate(image_embeddings_list, axis=0)
-    return image_embeddings, text_list, image_id_list, cell_id_list
-
-def load_embeddings(embedding_dir: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
-    """加载所有嵌入文件，并提取图像嵌入、文本、图片 ID 和 H3 单元 ID。"""
-    embedding_files = [
-        os.path.join(embedding_dir, f) 
-        for f in os.listdir(embedding_dir) 
-        if f.startswith("clip_embeddings_batch_") and f.endswith(".pt")
-    ]
-
-    image_embeddings_list = []
-    text_list = []
-    image_id_list = []
-    cell_id_list = []
-
-    for file_path in embedding_files:
-        embedding_data = torch.load(file_path, weights_only=True)
-        image_embeddings_list.append(embedding_data["image"].cpu().numpy())
-        text_list.extend(embedding_data["text"])
-        image_id_list.extend(embedding_data["image_id"])
-        cell_id_list.extend(embedding_data["cell_id"])
-
-    image_embeddings = np.concatenate(image_embeddings_list, axis=0)
-    return image_embeddings, text_list, image_id_list, cell_id_list
+    # 转换为numpy数组（如果存在有效数据）
+    final_embeddings = np.stack(filtered_embeddings) if filtered_embeddings else np.array([])
+    
+    return (
+        final_embeddings,
+        filtered_texts,
+        filtered_image_ids,
+        [cid[level_index] for cid in filtered_cell_ids]  # 只返回目标层级的cell_id
+    )
 
 def build_faiss_index(image_embeddings: np.ndarray) -> faiss.IndexFlatIP:
     """构建 FAISS 索引并添加归一化的图像嵌入。"""
@@ -199,18 +205,38 @@ def display_results(
         cell_id = cell_id_list[indices[0][i]]
         print(f"图片 ID: {image_id}, 坐标: {coordinates}, 相似度: {distances[0][i]:.4f}, H3 单元: {cell_id}")
 
+
+def save_faiss_index(index: faiss.Index, file_path: str) -> None:
+    """保存FAISS索引到指定路径"""
+    # 确保目录存在
+    directory = os.path.dirname(file_path)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    
+    # 保存索引
+    faiss.write_index(index, file_path)
+    print(f"索引已保存至：{file_path}")
+
+def load_faiss_index(file_path: str) -> faiss.Index:
+    """从文件加载FAISS索引"""
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"索引文件 {file_path} 不存在")
+    
+    return faiss.read_index(file_path)
+
+
 def predict(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
-    embedding_dir = os.path.join(os.curdir, "TerraPulse")  # 修改为实际文件夹路径
-    classify_df = classify_s2cell(query_image_path)
+    # classify_df = classify_s2cell(query_image_path)
     # 加载嵌入数据
     # image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir, classify_df, target_p_key="hierarchy")
-    image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir)
+    image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings()
 
     # 构建 FAISS 索引
     index = build_faiss_index(image_embeddings)
+    save_faiss_index(index, "faiss_index.faiss")
+    # index = load_faiss_index("faiss_index.faiss")
 
-    # 获取查询图片嵌入
     query_embedding = get_image_embedding(query_image_path)
 
     # 查找最相似的图片
