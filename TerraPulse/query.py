@@ -6,9 +6,9 @@ import numpy as np
 from PIL import Image
 from typing import List, Tuple, Dict
 from openai import OpenAI
-import base64
 from .classify import classify
 from pathlib import Path
+import pandas as pd
 
 with open("sk.txt", "r") as f:
         key = f.read().strip()
@@ -19,10 +19,12 @@ client = OpenAI(
 )
 # 全局设备设置
 device = "cuda" if torch.cuda.is_available() else "cpu"
+print(device)
 model, preprocess = clip.load("ViT-B/32", device=device)
 os.environ["KMP_DUPLICATE_LIB_OK"] = "True"  # 防止冲突报错
-embedding_path = os.path.join(os.curdir, "TerraPulse/clip_embeddings.pt")
+embedding_path = r"F:/clip_embeddings.pt"
 embedding_data = torch.load(embedding_path, weights_only=True)
+
 
 def load_embeddings() -> Tuple[np.ndarray, List[str], List[str], List[str]]:
     """加载嵌入数据。"""
@@ -36,22 +38,21 @@ def load_embeddings() -> Tuple[np.ndarray, List[str], List[str], List[str]]:
     image_id_list = (embedding_data["image_id"])
     cell_id_list = (embedding_data["cell_id"])
 
-    image_embeddings = np.concatenate(image_embeddings_list, axis=0)
-    return image_embeddings, text_list, image_id_list, cell_id_list
+    return image_embeddings_list, text_list, image_id_list, cell_id_list
 
 def filter_embeddings(classify_df, target_p_key: str) -> Tuple[np.ndarray, List[str], List[str], List[str]]:
     global embedding_data
     """根据地理层级过滤匹配cell_id的嵌入数据"""
     # 地理层级映射字典
-    target_p_key_dict = {"coarse": 0, "middle": 1, "fine": 2, "hierachy": 0}
+    target_p_key_dict = {"coarse": 0, "middle": 1, "fine": 2, "hierarchy": 2}
     
     # 验证输入参数有效性
-    if target_p_key not in target_p_key_dict:
+    if target_p_key_dict.get(target_p_key) is None:
         raise ValueError(f"无效的target_p_key: {target_p_key}，有效值为{list(target_p_key_dict.keys())}")
     
     # 获取目标层级索引和对应的预测类别
     level_index = target_p_key_dict[target_p_key]
-    target_pred_classes = classify_df[classify_df['p_key'] == target_p_key]['pred_class'].tolist()
+    target_pred_classes = str(classify_df[classify_df['p_key'] == target_p_key]['pred_class'].tolist()[0])
     
     # 初始化存储容器
     filtered_embeddings = []
@@ -60,9 +61,9 @@ def filter_embeddings(classify_df, target_p_key: str) -> Tuple[np.ndarray, List[
     filtered_cell_ids = []
     
     # 遍历所有样本进行过滤
-    for i in range(len(embedding_data["image_embeddings"])):
+    for i in range(len(embedding_data["image"])):
         # 获取当前样本的cell_id层级值
-        current_cell_id = embedding_data["cell_ids"][i]
+        current_cell_id = embedding_data["cell_id"][i]
         
         # 跳过无效的cell_id数据
         if current_cell_id is None or len(current_cell_id) <= level_index:
@@ -70,14 +71,12 @@ def filter_embeddings(classify_df, target_p_key: str) -> Tuple[np.ndarray, List[
             
         # 提取对应层级的cell_id值
         level_cell_id = current_cell_id[level_index]
-        
         # 进行匹配过滤
-        if str(level_cell_id) in map(str, target_pred_classes):
-            filtered_embeddings.append(embedding_data["image_embeddings"][i].numpy())
-            filtered_texts.append(embedding_data["texts"][i])
-            filtered_image_ids.append(embedding_data["image_ids"][i])
-            filtered_cell_ids.append(embedding_data["cell_ids"][i])
-
+        if str(level_cell_id) == target_pred_classes:
+            filtered_embeddings.append(embedding_data["image"][i].numpy())
+            filtered_texts.append(embedding_data["text"][i])
+            filtered_image_ids.append(embedding_data["image_id"][i])
+            filtered_cell_ids.append(embedding_data["cell_id"][i])
     # 转换为numpy数组（如果存在有效数据）
     final_embeddings = np.stack(filtered_embeddings) if filtered_embeddings else np.array([])
     
@@ -88,10 +87,9 @@ def filter_embeddings(classify_df, target_p_key: str) -> Tuple[np.ndarray, List[
         [cid[level_index] for cid in filtered_cell_ids]  # 只返回目标层级的cell_id
     )
 
-def build_faiss_index(image_embeddings: np.ndarray) -> faiss.IndexFlatIP:
-    """构建 FAISS 索引并添加归一化的图像嵌入。"""
-    image_embeddings_norm = image_embeddings / np.linalg.norm(image_embeddings, axis=1, keepdims=True)
-    index = faiss.IndexFlatIP(image_embeddings.shape[1])  # 使用内积（余弦相似度）
+def build_faiss_index(image_embeddings):      # 预期 (n, d)
+    image_embeddings_norm = image_embeddings / np.linalg.norm(image_embeddings, axis=1, keepdims=True) # 应保持 (n, d)
+    index = faiss.IndexFlatL2(image_embeddings_norm.shape[1])
     index.add(image_embeddings_norm)
     return index
 
@@ -101,13 +99,6 @@ def get_image_embedding(image_path: str) -> np.ndarray:
     with torch.no_grad():
         image_features = model.encode_image(image)
     return image_features.cpu().numpy()
-
-def encode_image_2_base64(image_path: str) -> str:
-    """将图片编码为 Base64 字符串。"""
-    with open(image_path, "rb") as f:
-        image_bytes = f.read()
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    return image_base64
 
 def classify_s2cell(image_path: str) -> str:
     """使用分类模型预测图片的 H3 单元 ID。"""
@@ -125,29 +116,77 @@ def query_gpt_with_images(
     prompt: str, 
 ) -> str:
     """使用 大模型 查询图片地理坐标。"""
-    base64_image = encode_image_2_base64(query_image_path)
+    query_image_name = query_image_path.stem + query_image_path.suffix
     completion = client.chat.completions.create(
-        model="qwen-vl-plus",
+        model="qwen-vl-plus-latest",
         seed=42,
         messages=[
-        {
-            "role": "user",
-            "content": [
+                {"role": "system", "content": "You are an expert in image-based geolocation. Your task is to analyze query images, consider reference coordinates, and estimate their most likely geographic location. Always output coordinates in (latitude, longitude) format, e.g., (25.745593, -80.177536), without any additional explanation."},
                 {
-                    "type": "image_url",
-                    # 需要注意，传入BASE64，图像格式（即image/{format}）需要与支持的图片列表中的Content Type保持一致。"f"是字符串格式化的方法。
-                    # PNG图像：  f"data:image/png;base64,{base64_image}"
-                    # JPEG图像： f"data:image/jpeg;base64,{base64_image}"
-                    # WEBP图像： f"data:image/webp;base64,{base64_image}"
-                    "image_url": {"url": f"data:image/jpg;base64,{base64_image}"}, 
-                },
-                {"type": "text", "text": prompt},
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"http://www.lockede.me:5000/image/{query_image_name}"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ]
+                }
             ],
-        }
-    ],
-)
-    print(completion.choices[0].message.content)
+    timeout=60,
+    temperature=0.7,
+    )
+    
     return completion.choices[0].message.content
+
+import json
+from pathlib import Path
+
+def query_gpt_with_images_to_jsonl_append(
+    query_image_path: Path,
+    prompt: str,
+    jsonl_file: Path,
+) -> None:
+    """使用大模型查询图片地理坐标，读取现有jsonl文件后续写新请求数据。"""
+    # 读取现有的 JSONL 文件内容
+    if jsonl_file.exists():
+        with open(jsonl_file, "r", encoding="utf-8") as f:
+            existing_requests = [json.loads(line.strip()) for line in f]
+    else:
+        existing_requests = []  # 如果文件不存在，初始化为空列表
+
+    query_image_name = query_image_path.stem + query_image_path.suffix
+    request_data = {
+        "custom_id": query_image_name,
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            "model": "qwen-vl-plus",
+            "seed": 42,
+            "timeout": 60,
+            "temperature": 0.7,
+            "messages": [
+                {"role": "system", "content": "You are an expert in image-based geolocation. Your task is to analyze query images, consider reference coordinates, and estimate their most likely geographic location. Always output coordinates in (latitude, longitude) format, e.g., (25.745593, -80.177536), without any additional explanation."},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"http://www.lockede.me:5000/image/{query_image_name}"},
+                        },
+                        {"type": "text", "text": prompt},
+                    ]
+                }
+            ]
+        }
+    }
+    # 将新请求数据追加到现有数据列表
+    existing_requests.append(request_data)
+
+    # 重新写入更新后的数据到 JSONL 文件
+    with open(jsonl_file, "w", encoding="utf-8") as f:
+        for request in existing_requests:
+            f.write(json.dumps(request, ensure_ascii=False) + "\n")
 
 
 def search_most_similar_images(
@@ -169,18 +208,11 @@ def search_less_similar_images(
     query_embedding_norm = query_embedding / np.linalg.norm(query_embedding)
     distances, indices = index.search(-query_embedding_norm, k)
     return -distances, indices
+
 def get_coordinates_list(
         indices: np.ndarray, 
         text_list: List[str]
 ) -> List[str]:
-    """
-    从给定的索引列表中提取坐标列表。
-    参数:
-    indices (np.ndarray): 包含索引的二维数组。
-    text_list (List[str]): 包含所有文本的列表。
-    返回:
-    List[str]: 提取的坐标列表。
-    """
     coordinates_list = []
     for i in range(len(indices[0])):
         coordinates = text_list[indices[0][i]]
@@ -198,7 +230,6 @@ def display_results(
     """输出最相似的图片的 ID、坐标、相似度和 H3 单元 ID。"""
     print(f"查询图片: {query_image_path}")
     print(f"找到与查询图片最相似的 {len(indices[0])} 张图片：")
-
     for i in range(len(indices[0])):
         image_id = image_id_list[indices[0][i]].replace("/", "_")
         coordinates = text_list[indices[0][i]]
@@ -224,19 +255,21 @@ def load_faiss_index(file_path: str) -> faiss.Index:
     
     return faiss.read_index(file_path)
 
-
+# index = load_faiss_index("F:/faiss_index.faiss")
+classify_df = pd.read_csv("./TerraPulse/models/base_M/inference_im2gps3ktest.csv")
 def predict(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
     # classify_df = classify_s2cell(query_image_path)
     # 加载嵌入数据
-    # image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings(embedding_dir, classify_df, target_p_key="hierarchy")
-    image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings()
+    global classify_df
+    query_image_name = query_image_path.stem
+    df = classify_df[classify_df['img_id'] == query_image_name]
+    image_embeddings, text_list, image_id_list, cell_id_list = filter_embeddings(df, "hierarchy")
 
     # 构建 FAISS 索引
     index = build_faiss_index(image_embeddings)
-    save_faiss_index(index, "faiss_index.faiss")
-    # index = load_faiss_index("faiss_index.faiss")
-
+    # save_faiss_index(index, "F:/faiss_index.faiss")
+    # global index
     query_embedding = get_image_embedding(query_image_path)
 
     # 查找最相似的图片
@@ -249,10 +282,15 @@ def predict(query_image_path):
 
     most_similar_coords = get_coordinates_list(positive_indices, text_list)
     least_similar_coords = get_coordinates_list(negative_indices, text_list)
-    prompt_template = f"这是一张查询图片,假如你是一位图像地理定位方面的专家,请你结合你自己的知识,给出对这张图片地理坐标的猜测.这些是检索库中与其相似度最高的{k}张图片的地理坐标:{most_similar_coords},这些是与其相似度最低的{k}张的图片的地理坐标:{least_similar_coords},请注意查询图片并不在其中,所以不要直接使用这些坐标,而是作为参考,请你结合以上坐标信息,图像体现的地理位置特征以及你自己具备的知识,在推理后给出一个经过推理与计算的对查询图片地理坐标的猜测答案.你的答案必须在第一行以(LAT, LON)格式给出,不可为空,而后是你的推理思考过程."
-    print("prompt: ",prompt_template)
+    prompt = f"""This is a query image. Estimate its geographic coordinates based on the reference data and visual features.
+
+    - **Top {k} most similar images' coordinates**: {most_similar_coords}
+    - **Bottom {k} least similar images' coordinates**: {least_similar_coords}
+
+    ⚠️ The query image itself is NOT included in these sets. Do NOT use these coordinates directly. Instead, use them as references along with geographic clues in the image and general knowledge.
+    **Output only the estimated coordinates on the first line in (latitude, longitude) format, e.g., (25.745593, -80.177536). No explanations. The answer cannot be empty.**"""
     print("*******-----------------********")
-    return query_gpt_with_images(query_image_path, prompt_template)
+    return query_gpt_with_images_to_jsonl_append(query_image_path, prompt, Path("TerraPulse/output/queries.jsonl"))
 
 if __name__ == "__main__":
-    predict(r"TerraPulse/resources/query.jpg")
+    predict("TerraPulse/query.jpg")

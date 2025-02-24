@@ -1,8 +1,17 @@
+'''
+    用于对基线数据集im2gps3k进行测试
+    1. 加载im2gps3k的坐标数据
+    2. 加载模型
+    3. 对im2gps3k的图片进行预测
+    4. 计算预测坐标和真实坐标之间的距离，并返回各个距离范围内的准确率。
+'''
 from TerraPulse.classify import classify
-from TerraPulse.query import *
+# from TerraPulse.query import *
 import pandas as pd
+from pathlib import Path
 from geopy.distance import geodesic
-
+import json
+from tqdm import tqdm
 def calculate_accuracy_with_geopy(result_df: pd.DataFrame):
     """
     使用 geopy 库计算预测坐标和真实坐标之间的距离，并返回各个距离范围内的准确率。
@@ -28,6 +37,8 @@ def calculate_accuracy_with_geopy(result_df: pd.DataFrame):
         # 使用 geopy 计算距离
         true_coords = (true_lat, true_lon)
         predicted_coords = (predicted_lat, predicted_lon)
+        if(predicted_coords == (0.0, 0.0)):
+            continue
         distance = geodesic(true_coords, predicted_coords).kilometers
         
         # 根据距离判断准确性
@@ -41,7 +52,6 @@ def calculate_accuracy_with_geopy(result_df: pd.DataFrame):
         threshold: f"{(count / total_count) * 100:.4f}%"  # 保留小数点后两位并加上百分号
         for threshold, count in accuracy.items()
     }
-
         
     return accuracy_percentage
 
@@ -52,35 +62,67 @@ def load_image_coords(url_csv: Path):
     coords_df = df[['IMG_ID', 'LAT', 'LON']]
     return coords_df
 
+def load_response(path):
+    with open(path, "r", encoding="utf-8") as f:
+        response = [json.loads(line.strip()) for line in f]
+    return response
+
+def load_inference_result(path):
+    df = pd.read_csv(path)
+    return df
+
 def test_im2gps3k(checkpoint: Path, test_valset_path: Path, test_dataset_path: Path, use_gpu: bool):
     # 加载图像坐标数据
     coords_df = load_image_coords(test_valset_path)
-
-    # 假设你有一个模型函数用于进行预测
-    # model = load_model(checkpoint)  # 根据需要加载模型
 
     # 用于存储预测结果的列表
     predictions = []
 
     # 循环处理每张图像
-    for image_path in test_dataset_path.iterdir():
-        if image_path.suffix.lower() in ['.jpg', '.png', '.jpeg']:  # 确保只处理图像文件
-
-            # 示例: 假设你的预测结果是经纬度 (latitude, longitude)
-            predicted_lat, predicted_lon = 0.0 , 0.0  # 使用实际模型的输出替代
-
-            # 提取图像 ID，这里假设图像文件名即为 IMG_ID
-            img_id = image_path.stem
+    image_files = [
+        f for f in test_dataset_path.iterdir()
+        if f.suffix.lower() in ['.jpg', '.png', '.jpeg']
+    ]
+    
+    response_list = load_response("TerraPulse/output/filter_result.jsonl")
+    inference_df = load_inference_result("TerraPulse/models/base_M/inference_im2gps3ktest.csv")
+    count = 0
+    # for image_path in tqdm(image_files, desc="Processing images"): 
+    #     if image_path.suffix.lower() in ['.jpg', '.png', '.jpeg']:  # 确保只处理图像文件
+    #         predict(image_path)
+    #         continue
+    for row in response_list:
+            img_id = row['custom_id']
+            response = row["response"]["body"]["choices"][0]["message"]["content"]
+            try:
+                predicted_lat, predicted_lon = response.replace("(", "").replace(")", "").split(',')
+                predicted_lat = float(predicted_lat)
+                predicted_lon = float(predicted_lon)
+                if(predicted_lat == 0.0 and predicted_lon == 0.0):
+                    mask = (inference_df['p_key'] == "hierarchy") & (inference_df['img_id'] == img_id.replace(".jpg", ""))
+                    predicted_lat = float(inference_df.loc[mask, 'pred_lat'].values[0])
+                    predicted_lon = float(inference_df.loc[mask, 'pred_lng'].values[0])
+                    print(f"Use inference result {predicted_lat}, {predicted_lon}")
+            except:
+                print(f"Warning: Dangerous response {response} for image {img_id}")
+                # predicted_lat = 0.0
+                # predicted_lon = 0.0
+                mask = (inference_df['p_key'] == "hierarchy") & (inference_df['img_id'] == img_id.replace(".jpg", ""))
+                predicted_lat = float(inference_df.loc[mask, 'pred_lat'].values[0])
+                predicted_lon = float(inference_df.loc[mask, 'pred_lng'].values[0])
+                print(f"Use inference result {predicted_lat}, {predicted_lon}")
+            
+            # # 提取图像 ID，这里假设图像文件名即为 IMG_ID
+            # img_id = image_path.stem + image_path.suffix
 
             # 从 coords_df 中获取对应的真实经纬度（LAT, LON）
-            true_coords = coords_df[coords_df['IMG_ID'] == img_id+".jpg"]
+            true_coords = coords_df[coords_df['IMG_ID'] == img_id]
             if not true_coords.empty:
-                predicted_lat, predicted_lon = 32.325436 , -64.764404  # 使用实际模型的输出替代
                 true_lat = true_coords['LAT'].values[0]
                 true_lon = true_coords['LON'].values[0]
             else:
                 print(f"Warning: No coordinates found for image {img_id}")
-                pass
+                continue
 
             # 存储图像的预测结果及真实标签
             predictions.append({
@@ -96,11 +138,11 @@ def test_im2gps3k(checkpoint: Path, test_valset_path: Path, test_dataset_path: P
 
     # 打印或保存结果
     print(result_df)
-    result_df.to_csv("result_df.csv", index=False)
+    result_df.to_csv("./TerraPulse/output/result_df.csv", index=False)
     
     accuracy_df = calculate_accuracy_with_geopy(result_df)
     print(accuracy_df)
-    accuracy_df.to_csv("accuracy_df.csv", index=False)
+    json.dump(accuracy_df, open("accuracy.json", "w"))
     
 if __name__ == "__main__":
     checkpoint_path = Path("TerraPulse/models/base_M/epoch=014-val_loss=18.4833.ckpt")

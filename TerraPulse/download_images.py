@@ -1,3 +1,14 @@
+'''
+    用于下载MP16数据集的图片的脚本
+    1. 读取CSV文件中的图片ID和URL
+    2. 使用多线程下载图片
+    3. 保存到指定目录
+    注意：
+    - 请确保CSV文件放在正确的位置
+    - 由于Flickr限制下载频率,可能需要等待一段时间
+'''
+
+
 import requests
 import pandas as pd
 from PIL import ImageFile, Image
@@ -20,7 +31,7 @@ USER_AGENTS = [
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 # 下载图片函数
-def download_image(image_id, url, output_dir, count, thread_id, session):
+def download_image(image_id, url, output_dir, count, thread_id):
     save_path = output_dir / f"{image_id.replace('/', '_')}.jpg"
 
     headers = {
@@ -35,9 +46,8 @@ def download_image(image_id, url, output_dir, count, thread_id, session):
 
     while retry_count < max_retries:
         try:
-            time.sleep(random.uniform(2,4))
-
-            response = session.get(url, headers=headers, timeout=10)
+            time.sleep(5)
+            response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
 
             image = Image.open(BytesIO(response.content))
@@ -53,7 +63,7 @@ def download_image(image_id, url, output_dir, count, thread_id, session):
 
         except requests.exceptions.HTTPError as e:
             if response.status_code == 429:
-                tqdm.write(f"Thread {thread_id} - Rate limit hit for {image_id}, retrying...")
+                tqdm.write(f"Thread {thread_id} - Rate limit exceeded for {image_id}, retrying...")
                 retry_count += 1
                 time.sleep(retry_delay)
                 retry_delay *= 2 + random.uniform(1, 3)
@@ -84,11 +94,11 @@ def split_data(image_data, num_threads):
     return data_splits
 
 # 线程下载函数
-def thread_download(data_chunk, output_dir, start_index, thread_id, total_count, session):
+def thread_download(data_chunk, output_dir, start_index, thread_id, total_count):
     count = 0
     for index, row in data_chunk.iterrows():
         image_id, url = row["image_id"], row["url"]
-        count = download_image(image_id, url, output_dir, count, thread_id, session)
+        count = download_image(image_id, url, output_dir, count, thread_id)
         total_count[0] += 1
         with total_count_lock:
             progress_bar.set_description(f"Progress: {total_count[0]}/{len(image_data)}")
@@ -97,8 +107,8 @@ def thread_download(data_chunk, output_dir, start_index, thread_id, total_count,
 
 # 主函数
 def main():
-    start_index = 177070
-    end_index = 177070
+    start_index = 191000
+    end_index = 192000
     url_csv = "resources/mp16_urls.csv"
     output_dir = Path("D:/mp16/downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -106,7 +116,7 @@ def main():
     global image_data
     image_data = load_image_data(url_csv, start_index=start_index, end_index=end_index)
 
-    num_threads = 32
+    num_threads = 16
 
     global total_count_lock
     total_count_lock = threading.Lock()
@@ -118,9 +128,7 @@ def main():
     with ThreadPoolExecutor(max_workers=num_threads) as executor:
         futures = []
         for i, data_chunk in enumerate(split_data(image_data, num_threads)):
-            session = requests.Session()
-            futures.append(executor.submit(thread_download, data_chunk, output_dir, start_index + i * len(data_chunk), i + 1, total_count, session))
-
+            futures.append(executor.submit(thread_download, data_chunk, output_dir, start_index + i * len(data_chunk), i + 1, total_count))
         for future in as_completed(futures):
             future.result()
 
