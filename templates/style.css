@@ -1,196 +1,213 @@
-/* style.css */
 :root {
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --dark-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-    --glass-bg: rgba(255, 255, 255, 0.15);
-    --dark-glass: rgba(0, 0, 0, 0.2);
-    --content-spacing: 2rem;
-    --text-color: rgba(255, 255, 255, 0.9);
-    --card-radius: 1.5rem;
-    --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --glass-bg: rgba(255, 255, 255, 0.15);
+  --content-spacing: 2rem;
+  --text-color: rgba(255, 255, 255, 1); /* 修正透明度值，范围应为 0 到 1 */
+}
+
+body {
+  background: var(--primary-gradient);
+  min-height: 100vh;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--text-color);
+}
+
+.main-card {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  min-height: 90vh;
+  padding: var(--content-spacing);
+  gap: var(--content-spacing);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* 加载动画 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+/* 夜间模式 */
+.dark-mode {
+  --primary-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  --glass-bg: rgba(0, 0, 0, 0.15);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  #map {
+      height: 350px;
   }
-  
-  /* 基础样式 */
-  body {
-    background: var(--primary-gradient);
-    min-height: 100vh;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    color: var(--text-color);
-    line-height: 1.6;
-    transition: background 0.3s ease;
-  }
-  
-  body.dark-mode {
-    background: var(--dark-gradient);
-  }
-  
-  /* 主容器 */
-  .main-container {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: var(--content-spacing);
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: var(--content-spacing);
-    min-height: 100vh;
-  }
-  
-  /* 卡片样式 */
-  .gradient-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
-    backdrop-filter: blur(12px);
-    border-radius: var(--card-radius);
-    border: 1px solid rgba(255,255,255,0.1);
-    transition: transform var(--transition-fast);
-    box-shadow: var(--shadow-md);
-  }
-  
-  .gradient-card:hover {
-    transform: translateY(-5px);
-  }
-  
-  .dark-mode .gradient-card {
-    background: linear-gradient(145deg, rgba(0,0,0,0.15), rgba(0,0,0,0.25));
-  }
-  
-  /* 上传区域 */
+
   .upload-section {
-    padding: 4rem 2rem;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
+      padding: 1.5rem;
   }
-  
-  .upload-section::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1));
-    transform: rotate(30deg);
-    pointer-events: none;
+
+  .info-card {
+      margin-bottom: 1rem;
   }
-  
-  /* 上传按钮 */
-  .upload-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.8rem;
-    padding: 1.2rem 2.4rem;
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px dashed rgba(255, 255, 255, 0.3);
-    border-radius: calc(var(--card-radius) / 2);
-    cursor: pointer;
-    transition: all var(--transition-fast);
+
+  .result-section {
+      padding: 1.5rem;
   }
-  
-  .upload-label:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
-  }
-  
-  .upload-label i {
-    font-size: 1.8rem;
-  }
-  
-  /* 地图容器 */
-  #map-container {
-    height: 60vh;
-    min-height: 400px;
-    border-radius: var(--card-radius);
-    overflow: hidden;
-  }
-  
-  /* 结果展示 */
-  .result-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--content-spacing);
-  }
-  
-  .data-item {
-    display: grid;
-    grid-template-columns: 40px 1fr;
-    align-items: center;
-    padding: 1.2rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-  }
-  
-  /* 工具按钮 */
-  .action-button {
-    width: 100%;
-    padding: 1rem;
-    border-radius: calc(var(--card-radius) / 2);
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.15);
-    transition: all var(--transition-fast);
-  }
-  
-  .action-button:hover {
-    background: rgba(255,255,255,0.1);
-    transform: translateY(-2px);
-  }
-  
-  /* 响应式设计 */
-  @media (max-width: 768px) {
-    :root {
-      --content-spacing: 1.5rem;
-    }
-  
-    .main-container {
-      padding: 1rem;
-    }
-  
-    .upload-section {
-      padding: 2rem 1rem;
-    }
-  
-    #map-container {
-      height: 50vh;
-    }
-  
-    .result-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-  
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  
-  .fade-in {
-    animation: fadeIn 0.6s ease-out;
-  }
-  
-  /* 标记样式 */
-  .result-marker {
-    background: var(--primary-gradient);
-    width: 40px !important;
-    height: 40px !important;
-    border-radius: 50%;
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    border: 2px solid white;
-  }
-  
-  .result-marker::after {
-    content: '';
-    width: 12px;
-    height: 12px;
-    background: white;
-    border-radius: 50%;
-  }
-  
-  /* 页脚 */
+
   .attribution {
-    text-align: center;
-    padding: 1.5rem;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 0.9rem;
+      padding: 1rem;
   }
+}
+
+.upload-section {
+  padding: 4rem 2rem;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+}
+
+.upload-section:hover {
+  transform: translateY(-5px);
+}
+
+#imageInput {
+  display: none;
+}
+
+.upload-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 1.5rem 3rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 15px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+}
+
+.upload-label:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-5px);
+}
+
+.upload-label i {
+  font-size: 2rem;
+  color: #fff;
+}
+
+#map {
+  height: 600px;
+  border-radius: 20px;
+  margin: 2rem 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#map-container {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+  height: 60vh;
+  min-height: 400px;
+  margin: calc(var(--content-spacing) * 1.5) 0;
+}
+
+.result-marker {
+  background: var(--primary-gradient);
+  border-radius: 50%;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  border: 2px solid white;
+}
+
+.result-marker::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  background: white;
+  border-radius: 50%;
+}
+
+.attribution {
+  color: rgba(255, 255, 255, 0.7);
+  text-align: center;
+  padding: 1.5rem;
+}
+
+.result-section {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--content-spacing);
+  padding-top: var(--content-spacing);
+}
+
+.info-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 2rem;
+  transition: transform 0.3s ease;
+}
+
+.info-card:hover {
+  transform: translateY(-5px);
+}
+
+.info-card i {
+  color: #a3a8ff;
+  font-size: 1.5rem;
+}
+
+/* 优化信息展示 */
+.data-item {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* 增强按钮交互 */
+.action-button {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem 1.5rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 1.1rem;
+}
+
+@media (max-width: 768px) {
+  .main-card {
+      min-height: auto;
+      padding: 1rem;
+  }
+  
+  #map-container {
+      height: 50vh;
+      margin: 1rem 0;
+  }
+  
+  .result-section {
+      grid-template-columns: 1fr;
+  }
+  
+  .upload-section {
+      padding: 2rem 1rem;
+  }
+}

@@ -25,7 +25,6 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "True"  # 防止冲突报错
 embedding_path = r"F:/clip_embeddings.pt"
 embedding_data = torch.load(embedding_path, weights_only=True)
 
-
 def load_embeddings() -> Tuple[np.ndarray, List[str], List[str], List[str]]:
     """加载嵌入数据。"""
     image_embeddings_list = []
@@ -118,7 +117,7 @@ def query_gpt_with_images(
     """使用 大模型 查询图片地理坐标。"""
     query_image_name = query_image_path.stem + query_image_path.suffix
     completion = client.chat.completions.create(
-        model="qwen-vl-plus-latest",
+        model="qwen-vl-max",
         seed=42,
         messages=[
                 {"role": "system", "content": "You are an expert in image-based geolocation. Your task is to analyze query images, consider reference coordinates, and estimate their most likely geographic location. Always output coordinates in (latitude, longitude) format, e.g., (25.745593, -80.177536), without any additional explanation."},
@@ -255,21 +254,20 @@ def load_faiss_index(file_path: str) -> faiss.Index:
     
     return faiss.read_index(file_path)
 
-# index = load_faiss_index("F:/faiss_index.faiss")
-classify_df = pd.read_csv("./TerraPulse/models/base_M/inference_im2gps3ktest.csv")
+index = load_faiss_index("F:/faiss_index.faiss")
+# classify_df = pd.read_csv("./TerraPulse/models/base_M/inference_im2gps3ktest.csv")
 def predict(query_image_path):
     """主函数，加载嵌入、查询图片并输出结果。"""
-    # classify_df = classify_s2cell(query_image_path)
-    # 加载嵌入数据
-    global classify_df
+    # global classify_df
     query_image_name = query_image_path.stem
-    df = classify_df[classify_df['img_id'] == query_image_name]
-    image_embeddings, text_list, image_id_list, cell_id_list = filter_embeddings(df, "hierarchy")
+    # df = classify_df[classify_df['img_id'] == query_image_name]
+    # image_embeddings, text_list, image_id_list, cell_id_list = filter_embeddings(df, "hierarchy")
+    image_embeddings, text_list, image_id_list, cell_id_list = load_embeddings()
 
     # 构建 FAISS 索引
-    index = build_faiss_index(image_embeddings)
+    # index = build_faiss_index(image_embeddings)
     # save_faiss_index(index, "F:/faiss_index.faiss")
-    # global index
+    global index
     query_embedding = get_image_embedding(query_image_path)
 
     # 查找最相似的图片
@@ -290,7 +288,8 @@ def predict(query_image_path):
     ⚠️ The query image itself is NOT included in these sets. Do NOT use these coordinates directly. Instead, use them as references along with geographic clues in the image and general knowledge.
     **Output only the estimated coordinates on the first line in (latitude, longitude) format, e.g., (25.745593, -80.177536). No explanations. The answer cannot be empty.**"""
     print("*******-----------------********")
-    return query_gpt_with_images_to_jsonl_append(query_image_path, prompt, Path("TerraPulse/output/queries.jsonl"))
+    # return query_gpt_with_images_to_jsonl_append(query_image_path, prompt, Path("TerraPulse/output/queries.jsonl"))
+    return query_gpt_with_images(query_image_path, prompt)
 
 if __name__ == "__main__":
     predict("TerraPulse/query.jpg")

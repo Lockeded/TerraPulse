@@ -84,7 +84,7 @@ def test_im2gps3k(checkpoint: Path, test_valset_path: Path, test_dataset_path: P
         if f.suffix.lower() in ['.jpg', '.png', '.jpeg']
     ]
     
-    response_list = load_response("TerraPulse/output/filter_result.jsonl")
+    response_list = load_response("TerraPulse/output/hunyuan_result.jsonl")
     inference_df = load_inference_result("TerraPulse/models/base_M/inference_im2gps3ktest.csv")
     count = 0
     # for image_path in tqdm(image_files, desc="Processing images"): 
@@ -92,8 +92,9 @@ def test_im2gps3k(checkpoint: Path, test_valset_path: Path, test_dataset_path: P
     #         predict(image_path)
     #         continue
     for row in response_list:
-            img_id = row['custom_id']
-            response = row["response"]["body"]["choices"][0]["message"]["content"]
+            # img_id = row['custom_id']
+            # response = row["response"]["body"]["choices"][0]["message"]["content"]
+        for img_id, response in row.items():
             try:
                 predicted_lat, predicted_lon = response.replace("(", "").replace(")", "").split(',')
                 predicted_lat = float(predicted_lat)

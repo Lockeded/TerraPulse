@@ -129,5 +129,5 @@ def serve_blurred_image(filename):
     return send_from_directory(app.config['BLUR_FOLDER'], filename)
 
 if __name__ == '__main__':
-    app.run(use_reloader=True, debug=True)
+    app.run(debug=True)
 

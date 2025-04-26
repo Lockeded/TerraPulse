@@ -3,519 +3,780 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TerraPulse | 图像地理定位</title>
-    <!-- 样式依赖 -->
+    <title>TerraPulse | Layered Layout</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css" rel="stylesheet" />
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
         :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --glass-bg: rgba(255, 255, 255, 0.15);
-
-            --content-spacing: 2rem;
-            --text-color: rgba(255, 255, 255, 0.9);
+            --primary-color: #5a67d8;
+            --secondary-color: #805ad5;
+            --accent-color: #edf2f7;
+            --text-color: #2d3748;
+            --text-muted-color: #718096;
+            --bg-gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(255, 255, 255, 0.25);
+            --shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            --border-radius-lg: 16px;
+            --border-radius-md: 12px;
+            --transition-smooth: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            --sidebar-width: 340px;
+            --body-padding: 1rem;
         }
-
 
         body {
-            background: var(--primary-gradient);
-            min-height: 100vh;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg-gradient);
             color: var(--text-color);
+            margin: 0;
+            padding: var(--body-padding);
+            line-height: 1.6;
+            overflow: hidden;
+            height: 100vh;
+            box-sizing: border-box;
         }
 
-        .main-card {
-            display: grid;
-            grid-template-columns: 1fr;
-            grid-template-rows: auto 1fr auto;
-            min-height: 90vh;
-            padding: var(--content-spacing);
-            gap: var(--content-spacing);
-            max-width: 1200px;
-            margin: 0 auto;
+        .sidebar {
+            position: absolute;
+            top: var(--body-padding);
+            left: var(--body-padding);
+            bottom: var(--body-padding);
+            width: var(--sidebar-width);
+            z-index: 10;
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow);
+            padding: 1.5rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            transition: none;
         }
 
-        /* 加载动画 */
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .sidebar-content {
+            opacity: 1;
+            flex-grow: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
         }
 
-        .fade-in {
-            animation: fadeIn 0.5s ease-in;
+        .main {
+            position: absolute;
+            top: var(--body-padding);
+            left: calc(var(--sidebar-width) + (2 * var(--body-padding)));
+            right: var(--body-padding);
+            bottom: var(--body-padding);
+            z-index: 1;
+            transition: left var(--transition-smooth);
         }
 
-        /* 夜间模式 */
-        .dark-mode {
-            --primary-gradient: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
-            --glass-bg: rgba(0, 0, 0, 0.15);
-        }
-
-        /* 响应式布局 */
-        @media (max-width: 768px) {
-            #map {
-                height: 350px;
-            }
-
-
-            .upload-section {
-                padding: 1.5rem;
-            }
-
-            .info-card {
-                margin-bottom: 1rem;
-            }
-
-            .result-section {
-                padding: 1.5rem;
-            }
-
-            .attribution {
-                padding: 1rem;
-            }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; }
 
         .upload-section {
-
-
-            padding: 4rem 2rem;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.1);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             text-align: center;
+            margin-bottom: 1.5rem;
+            flex-shrink: 0;
         }
 
-        .upload-section:hover {
-
-            transform: translateY(-5px);
-        }
-
-        #imageInput {
-            display: none;
-        }
-
+        #imageInput { display: none; }
         .upload-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 0.8rem 1.8rem;
+            background: var(--primary-color);
+            border-radius: var(--border-radius-md);
+            color: white;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            font-weight: 500;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .upload-label:hover { background: var(--secondary-color); transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2); }
+        .upload-label i { font-size: 1.3rem; }
+        .upload-label.loading, .action-button.loading { cursor: not-allowed; opacity: 0.7; }
+        .upload-label.loading span::after { content: '中...'; }
+
+        #map-container {
+            height: 100%;
+            width: 100%;
+            border-radius: var(--border-radius-lg);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        #map { height: 100%; width: 100%; }
+
+        .result-marker {
+            background: var(--primary-color); border-radius: 50%; width: 32px !important; height: 32px !important;
+            display: flex !important; align-items: center; justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 3px solid white;
+        }
+        .result-marker::after { content: ''; width: 8px; height: 8px; background: white; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+
+        .ref-marker-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 3px solid var(--secondary-color);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+            background-color: var(--accent-color);
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
-
-            padding: 1.5rem 3rem;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px dashed rgba(255, 255, 255, 0.3);
-
-            border-radius: 15px;
-            color: white;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 1.2rem;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+        .ref-marker-icon:hover {
+            transform: scale(1.1);
+            border-color: var(--primary-color);
+        }
+        .ref-marker-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
-        .upload-label:hover {
-            background: rgba(255, 255, 255, 0.2);
-
-            transform: translateY(-5px);
+        .leaflet-popup-content-wrapper {
+            border-radius: var(--border-radius-md) !important;
+            background: var(--glass-bg) !important;
+            backdrop-filter: blur(5px);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--glass-border);
         }
-
-        .upload-label i {
-
-            font-size: 2rem;
-            color: #fff;
+        .leaflet-popup-tip {
+            background: var(--glass-bg) !important;
+            box-shadow: var(--shadow);
         }
-
-        #map {
-            height: 600px;
-
-
-            border-radius: 20px;
-            margin: 2rem 0;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        #map-container {
-            position: relative;
-
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            height: 60vh;
-            min-height: 400px;
-            margin: calc(var(--content-spacing) * 1.5) 0;
-        }
-
-        .result-marker {
-            background: var(--primary-gradient);
-            border-radius: 50%;
-            width: 40px !important;
-            height: 40px !important;
-            display: flex !important;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-            border: 2px solid white;
-        }
-
-        .result-marker::after {
-            content: '';
-            width: 12px;
-            height: 12px;
-            background: white;
-            border-radius: 50%;
-        }
-
-        .attribution {
-            color: rgba(255, 255, 255, 0.7);
-            text-align: center;
-            padding: 1.5rem;
+        .leaflet-popup-content {
+            color: var(--text-color);
+            margin: 12px !important;
+            font-size: 0.9rem;
         }
 
         .result-section {
-            display: grid !important;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: var(--content-spacing);
-            padding-top: var(--content-spacing);
-        }
-
-        .info-card {
-            background: linear-gradient(145deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
-
-
-
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            transition: transform 0.3s ease;
-        }
-
-        .info-card:hover {
-
-            transform: translateY(-5px);
-        }
-
-        .info-card i {
-            color: #a3a8ff;
-            font-size: 1.5rem;
-        }
-
-        .attribution {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-
-
-        /* 优化信息展示 */
-        .data-item {
             display: grid;
-
-            grid-template-columns: 2rem 1fr;
-            align-items: center;
-
-
             gap: 1rem;
-            padding: 1rem 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
+            flex-grow: 1;
+            min-height: 0;
+        }
+        .info-card {
+            background: transparent;
+            border-radius: var(--border-radius-md);
+            padding: 0;
+            border: none;
+            transition: var(--transition-smooth);
         }
 
-        /* 增强按钮交互 */
+        .info-card h5 { font-weight: 600; color: var(--primary-color); margin-bottom: 1rem; display: flex; align-items: center; }
+        .info-card h5 i { margin-right: 0.7rem; font-size: 1.1em; }
+
+        .data-item {
+            display: flex; align-items: center; gap: 1rem; padding: 0.6rem 0;
+            border-bottom: 1px solid var(--glass-border);
+            white-space: nowrap;
+        }
+        .data-item:last-child { border-bottom: none; }
+        .data-item i { color: var(--secondary-color); font-size: 1.1rem; width: 20px; text-align: center; flex-shrink: 0; }
+        .data-item div { flex: 1; overflow: hidden; text-overflow: ellipsis;}
+        .data-item small { color: var(--text-muted-color); font-size: 0.8rem; display: block; margin-bottom: 0.1rem; }
+        .data-item div div { font-weight: 500; }
+
+        .scrollable-text {
+            max-height: 100px;
+            overflow-y: auto;
+            white-space: normal;
+            padding-right: 10px;
+        }
+
         .action-button {
+            width: 100%; padding: 0.75rem 1.5rem; background: var(--primary-color); color: white; border: none;
+            border-radius: var(--border-radius-md); font-weight: 500; transition: var(--transition-smooth); cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            white-space: nowrap;
+        }
+        .action-button:hover:not(:disabled) { background: var(--secondary-color); transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15); }
+        .action-button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        #blurModal .modal-dialog {
+            max-width: 900px;
+            width: 80vw;
+        }
+        #blurModal .modal-content {
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+        #blurModal .modal-header {
+            border-bottom: 1px solid var(--glass-border);
+            color: var(--primary-color);
+        }
+        #blurModal .modal-footer {
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .comparison-container {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: space-around;
+            padding: 1rem;
+        }
+
+        .comparison-image-wrapper {
+            flex: 1;
+            text-align: center;
+            background-color: rgba(0,0,0,0.03);
+            border-radius: var(--border-radius-md);
+            padding: 1rem;
+            border: 1px solid var(--glass-border);
+            height: 55vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .comparison-image-wrapper img {
+            display: block;
+            max-width: 100%;
+            max-height: calc(100% - 30px);
+            height: auto;
+            object-fit: contain;
+            border-radius: var(--border-radius-md);
+            margin-top: 0.5rem;
+        }
+
+        .comparison-image-wrapper h6 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted-color);
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 992px) {
+            .comparison-container {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .comparison-image-wrapper {
+                height: 40vh;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 0;
+                overflow-y: auto;
+                height: auto;
+            }
+            .sidebar {
+                position: static;
+                width: 100%;
+                height: auto;
+                max-height: none;
+                z-index: auto;
+                border-radius: 0;
+                border: none;
+                border-bottom: 1px solid var(--glass-border);
+                margin-bottom: 0;
+                top: auto; left: auto; bottom: auto;
+                box-shadow: none;
+                padding: 1rem;
+                overflow-y: visible;
+                opacity: 1;
+            }
+            .sidebar-content { opacity: 1; pointer-events: auto; }
+            .main {
+                position: static;
+                width: 100%;
+                height: 60vh;
+                min-height: 300px;
+                padding: 0 1rem 1rem 1rem;
+                box-sizing: border-box;
+                left: auto; top: auto; right: auto; bottom: auto;
+            }
+            #map-container {
+                border-radius: var(--border-radius-lg);
+                height: 100%;
+            }
+            #blurModal .modal-dialog {
+                max-width: 95%;
+                width: 95%;
+            }
+            .comparison-image-wrapper {
+                height: 35vh;
+            }
+        }
+
+        .lb-outerContainer {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(240, 240, 245, 0.9)) !important;
+            border-radius: 20px !important;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2) !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            max-width: 90vw !important;
+            max-height: 90vh !important;
+            position: fixed !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) scale(0.95);
+            animation: lightboxFadeIn 0.3s ease-out forwards;
+        }
+        @keyframes lightboxFadeIn {
+            from { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        .lb-container {
             display: flex;
             align-items: center;
-
-            gap: 1rem;
-            width: 100%;
-
-            padding: 1rem 1.5rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 1.1rem;
+            justify-content: center;
+            height: 100%;
+            padding: 10px;
         }
-
-       
-        @media (max-width: 768px) {
-            .main-card {
-                min-height: auto;
-                padding: 1rem;
-            }
-            
-            #map-container {
-                height: 50vh;
-                margin: 1rem 0;
-            }
-            
-            .result-section {
-                grid-template-columns: 1fr;
-            }
-            
-            .upload-section {
-                padding: 2rem 1rem;
-            }
+        .lb-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 12px;
+            transition: transform 0.2s ease;
+        }
+        .lb-image:hover {
+            transform: scale(1.02);
+        }
+        .lb-dataContainer {
+            width: 100%;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            background: rgba(255, 255, 255, 0.85) !important;
+            backdrop-filter: blur(8px);
+            padding: 12px;
+            border-top: 1px solid rgba(200, 200, 200, 0.3);
+        }
+        .lb-data .lb-caption {
+            color: var(--text-color) !important;
+            font-weight: 500 !important;
+            font-size: 1rem !important;
+            padding: 8px 12px !important;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .lb-data .lb-caption .similarity-score {
+            color: var(--primary-color);
+            font-size: 0.9rem;
+            font-weight: 600;
+            background: rgba(90, 103, 216, 0.1);
+            padding: 4px 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .lb-data .lb-number {
+            color: var(--text-muted-color) !important;
+            padding-right: 12px !important;
+            font-size: 0.85rem !important;
+        }
+        .lb-close {
+            filter: brightness(0.5) contrast(2);
+            opacity: 0.8;
+            font-size: 1.5rem;
+            padding: 10px;
+        }
+        .lb-close:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+        .lb-nav a.lb-prev, .lb-nav a.lb-next {
+            opacity: 0.7;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lb-nav a.lb-prev:hover, .lb-nav a.lb-next:hover {
+            opacity: 1;
+            background: rgba(0, 0, 0, 0.7);
         }
     </style>
 </head>
-<body>
-    <div class="container py-5 fade-in">
-        <div class="main-card">
-            <!-- 模式切换按钮 -->
-            <div class="position-absolute top-0 end-0 m-3">
-                <button id="themeToggle" class="btn btn-light btn-sm">
-                    <i class="fas fa-moon"></i>
-                </button>
-            </div>
-            <!-- 上传区域 -->
-            <section class="upload-section text-center">
-                <h1 class="text-white mb-4 display-5 fw-bold">
-                    <i class="fas fa-map-marker-alt me-2"></i>TerraPulse
+<body class="fade-in">
+    <div class="sidebar">
+        <div class="sidebar-content">
+            <section class="upload-section">
+                <h1 class="app-title">
+                    <i class="fas fa-map-marker-alt"></i>TerraPulse
                 </h1>
-                <div class="d-flex flex-column align-items-center">
-                    <input type="file" id="imageInput" accept="image/*">
-                    <label for="imageInput" class="upload-label">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <span>点击上传或拖放文件</span>
-                    </label>
-                    <p class="text-white-50 mt-3 mb-0">支持格式：JPEG, PNG, HEIC</p>
-                </div>
+                <input type="file" id="imageInput" accept="image/*">
+                <label for="imageInput" class="upload-label" id="uploadLabel">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <span>上传图片</span>
+                </label>
+                <p class="mt-3 mb-0" style="font-size: 0.85rem; color: var(--text-muted-color);">支持格式：JPEG, PNG, HEIC</p>
             </section>
 
-            <!-- 地图容器 -->
-            <div id="map-container">
-                <div id="map"></div>
-            </div>
-
-            <!-- 结果展示区域 -->
-
-            <section class="result-section">
-                <!-- 地理信息列 -->
+            <section class="result-section" id="resultSection">
                 <article class="info-card">
-                    <h5 class="text-white mb-3"><i class="fas fa-map-marked-alt me-2"></i>地理信息</h5>
+                    <h5 class="mb-3"><i class="fas fa-map-marked-alt"></i>地理信息</h5>
                     <div class="data-item">
                         <i class="fas fa-globe-asia"></i>
-                        <div>
-                            <small class="text-white-50">坐标</small>
-                            <div id="locationInfo" class="text-white"></div>
-                        </div>
+                        <div><small>预测坐标</small><div id="locationInfo">--</div></div>
                     </div>
                     <div class="data-item">
                         <i class="fas fa-info-circle"></i>
                         <div>
-                            <small class="text-white-50">预测理由</small>
-                            <div id="predictionReason" class="text-white">--</div>
+                            <small>预测理由</small>
+                            <div class="scrollable-text" id="predictionReason">--</div>
                         </div>
                     </div>
                 </article>
 
-                <!-- 图像信息列 -->
                 <article class="info-card">
-                    <h5 class="text-white mb-3"><i class="fas fa-image me-2"></i>图像分析</h5>
-                    <div class="data-item">
-                        <i class="fas fa-camera"></i>
-                        <div>
-                            <small class="text-white-50">文件名</small>
-                            <div id="fileName" class="text-white">--</div>
-                    <div class="data-item">
-                        <i class="fas fa-ruler-combined"></i>
-                        <div>
-                            <small class="text-white-50">分辨率</small>
-                            <div id="imageResolution" class="text-white">--</div>
-                        </div>
-                    </div>
-                    <div class="data-item">
-                        <i class="fas fa-database"></i>
-                        <div>
-                            <small class="text-white-50">文件大小</small>
-                            <div id="fileSize" class="text-white">--</div>
-                        </div>
-                    </div>
-                </article>
-
-                <!-- 操作面板 -->
-                <article class="info-card">
-                    <h5 class="text-white mb-3"><i class="fas fa-tools me-2"></i>图像处理</h5>
-                    <button id="blurButton" class="btn action-button btn-outline-light">
-                        <i class="fas fa-eye-slash"></i>
-                        <span>模糊地理位置</span>
+                    <h5 class="mb-3"><i class="fas fa-tools"></i>图像处理</h5>
+                    <button id="blurButton" class="action-button" disabled>
+                        <i class="fas fa-eye-slash"></i>模糊处理与对比
                     </button>
-                    <div class="mt-2">
-                        <small class="text-white-50">处理后的图像将自动下载</small>
-                    </div>
                 </article>
             </section>
         </div>
+    </div>
 
-        <!-- 页脚声明 -->
-        <div class="attribution">
-            <small>Developed by Locked | © 2024 GeoVision</small>
+    <div class="main">
+        <div id="map-container">
+            <div id="map"></div>
         </div>
     </div>
 
-    <!-- 脚本依赖 -->
+    <div class="modal fade" id="blurModal" tabindex="-1" aria-labelledby="blurModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="blurModalLabel"><i class="fas fa-adjust"></i> 模糊处理对比</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="comparison-container">
+                        <div class="comparison-image-wrapper">
+                            <h6><i class="fas fa-image"></i> 原始图片</h6>
+                            <img id="modalOriginalImage" src="#" alt="Original Image">
+                        </div>
+                        <div class="comparison-image-wrapper">
+                            <h6><i class="fas fa-eye-slash"></i> 模糊后图片</h6>
+                            <img id="modalBlurredImage" src="#" alt="Blurred Image">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> 关闭
+                    </button>
+                    <button type="button" class="btn btn-primary action-button" id="modalDownloadButton" style="width: auto;">
+                        <i class="fas fa-download"></i> 下载模糊图片
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox.min.js"></script>
 
     <script>
-        // 夜间模式切换
-        const themeToggle = document.getElementById('themeToggle');
-        themeToggle.addEventListener('click', () => {
-            document.body.classList.toggle('dark-mode');
-            themeToggle.querySelector('i').classList.toggle('fa-moon');
-            themeToggle.querySelector('i').classList.toggle('fa-sun');
-        });
-        
-        // 显示结果区域
-        function showResultSection(data) {
-            const resultSection = document.querySelector('.result-section');
-            resultSection.style.display = 'block';
-            setTimeout(() => resultSection.style.opacity = '1', 10);
-            const locationInfo = document.getElementById('locationInfo');
-            const imageResolution = document.getElementById('imageResolution');
-            const fileSize = document.getElementById('fileSize');
-            const fileName = document.getElementById('fileName');
-            const predictionReason = document.getElementById('predictionReason');
-            console.log(data)
-            // 填充位置信息
-            locationInfo.innerHTML = `
-                <p>纬度: ${data.lat.toFixed(6)}</p>
-                <p>经度: ${data.lng.toFixed(6)}</p>
-            `;
+        const body = document.body;
+        const imageInput = document.getElementById('imageInput');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const uploadLabelSpan = uploadLabel.querySelector('span');
+        const locationInfo = document.getElementById('locationInfo');
+        const predictionReason = document.getElementById('predictionReason');
+        const blurButton = document.getElementById('blurButton');
+        const blurModalElement = document.getElementById('blurModal');
+        const blurModal = new bootstrap.Modal(blurModalElement);
+        const modalOriginalImage = document.getElementById('modalOriginalImage');
+        const modalBlurredImage = document.getElementById('modalBlurredImage');
+        const modalDownloadButton = document.getElementById('modalDownloadButton');
 
-            // 填充图像信息
-            imageResolution.innerHTML = `${data.width} x ${data.height}`;
-            fileSize.innerHTML = `${(data.size / 1024).toFixed(2)} KB`;
-            fileName.innerHTML = data.filename;
+        window.currentImageFile = null;
+        window.blurredImageData = { blob: null, filename: null, originalObjectURL: null };
+        let currentMarker = null;
+        let referenceMarkers = [];
 
-
-            // 显示预测理由
-            predictionReason.textContent = data.message || '未提供预测理由';
-
-            resultSection.style.display = 'block';
-        }
-
-        // 图像模糊处理
-        document.getElementById('blurButton').addEventListener('click', async () => {
-            const file = document.getElementById('imageInput').files[0];
-            if (!file) {
-                showError('请先上传图片');
-                return;
-            }
-
-            try {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/blur', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-
-                if (data.error) {
-                    showError(data.error);
-                } else {
-                    // 更新图像显示
-                    const imgPreview = document.getElementById('imagePreview');
-                    if (imgPreview) {
-                        imgPreview.src = data.blurred_image_url;
-                    }
-                    // 更新按钮状态
-                    const blurButton = document.getElementById('blurButton');
-                    blurButton.disabled = true;
-                    blurButton.classList.remove('btn-outline-light');
-                    blurButton.classList.add('btn-success');
-                    blurButton.innerHTML = `<i class="fas fa-check-circle me-2"></i>已模糊处理` ;
-                    showSuccess('图像已成功模糊处理');
-                    const predictionReason = document.getElementById('predictionReason');
-                    predictionReason.textContent = '图像中的地理位置信息已模糊处理';
-                    predictionReason.style.backgroundColor = 'rgba(25, 135, 84, 0.1)';
-                }
-            } catch (error) {
-                showError('请求失败: ' + error.message);
-            }
-        });
-
-        function showSuccess(message) {
-            const toast = document.createElement('div');
-            toast.className = 'position-fixed bottom-0 end-0 m-3 toast align-items-center text-white bg-success border-0';
-            toast.innerHTML = `
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            `;
-            document.body.appendChild(toast);
-            new bootstrap.Toast(toast).show();
-        }
-    </script>
-
-    <script>
-        // 初始化地图
         const map = L.map('map', {
-            layers: [L.tileLayer('https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-                attribution: '© 高德地图'
-            })]
+            zoomControl: false,
+            attributionControl: false
         }).setView([30.5, 114.3], 3);
 
-        // 自定义地图样式
-        map.attributionControl.setPrefix('');
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.control.attribution({
+            position: 'bottomright',
+            prefix: ''
+        }).addTo(map);
 
-        // 文件上传处理
-        document.getElementById('imageInput').addEventListener('change', async (e) => {
+        const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 18
+        });
+        tileLayer.addTo(map);
+
+        function resetResultPlaceholders() {
+            locationInfo.textContent = '--';
+            predictionReason.textContent = '--';
+            blurButton.disabled = true;
+            blurButton.innerHTML = `<i class="fas fa-eye-slash"></i> 模糊处理与对比`;
+            window.currentImageFile = null;
+            if (window.blurredImageData.originalObjectURL) {
+                URL.revokeObjectURL(window.blurredImageData.originalObjectURL);
+            }
+            window.blurredImageData = { blob: null, filename: null, originalObjectURL: null };
+
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+                currentMarker = null;
+            }
+            referenceMarkers.forEach(marker => map.removeLayer(marker));
+            referenceMarkers = [];
+        }
+
+        imageInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
+            resetResultPlaceholders();
+            uploadLabel.classList.add('loading');
+            uploadLabelSpan.textContent = '上传';
+            imageInput.disabled = true;
+            blurButton.disabled = true;
+            const formData = new FormData();
+            formData.append('file', file);
             try {
-                const formData = new FormData();
-                formData.append('file', file);
-                
-                const response = await fetch('/upload', { method: 'POST', body: formData });
+                console.log("Simulating API call for upload...");
+                await new Promise(resolve => setTimeout(resolve, 1200));
+                const mockLat = 39.9042 + (Math.random() - 0.5) * 0.1;
+                const mockLng = 116.4074 + (Math.random() - 0.5) * 0.1;
+                const mockReferenceImages = [
+                    { lat: mockLat + 0.005, lng: mockLng + 0.005, thumbnail_url: `https://placekitten.com/50/50?image=1`, full_image_url: `https://placekitten.com/600/400?image=1`, similarity: 0.85 },
+                    { lat: mockLat - 0.003, lng: mockLng + 0.008, thumbnail_url: `https://placekitten.com/50/50?image=2`, full_image_url: `https://placekitten.com/600/400?image=2`, similarity: 0.78 },
+                    { lat: mockLat + 0.008, lng: mockLng - 0.006, thumbnail_url: `https://placekitten.com/50/50?image=3`, full_image_url: `https://placekitten.com/600/400?image=3`, similarity: 0.92 }
+                ];
+                const response = {
+                    ok: true,
+                    json: async () => ({
+                        lat: mockLat, lng: mockLng,
+                        message: "预测基于北京区域的模拟地标和参考点 (小猫!)。",
+                        reference_images: mockReferenceImages,
+                        error: null
+                    })
+                };
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
+                if (data.error) throw new Error(data.error);
 
-                if (data.error) {
-                    showError(data.error);
-                } else {
-                    // 清除旧标记
-                    map.eachLayer(layer => layer instanceof L.Marker && map.removeLayer(layer));
-                    showResultSection(data);
-                    console.log(data);
-                    // 创建自定义标记
-                    const marker = L.marker([data.lat, data.lng], {
-                        icon: L.divIcon({ className: 'result-marker' })
-                    }).addTo(map);
+                window.currentImageFile = file;
+                displayResults(data);
+                showToast('图片定位成功!', 'success');
+                blurButton.disabled = false;
 
-                    // 平滑定位动画
-                    map.flyTo([data.lat, data.lng], 15, {
-                        animate: true,
-                        duration: 1.5
-                    });
-
-                    // 信息弹窗
-                    marker.bindPopup(`
-                        <div class="p-2">
-                            <h6 class="mb-2">📍 预测位置</h6>
-                            <table class="table table-sm">
-                                <tr><td>纬度</td><td>${data.lat.toFixed(6)}</td></tr>
-                                <tr><td>经度</td><td>${data.lng.toFixed(6)}</td></tr>
-                            </table>
-                        </div>
-                    `).openPopup();
-                }
             } catch (error) {
-                showError('请求失败: ' + error.message);
+                console.error('Upload failed:', error);
+                showToast(`上传处理失败: ${error.message || '未知错误'}`, 'danger');
+                resetResultPlaceholders();
+            } finally {
+                uploadLabel.classList.remove('loading');
+                uploadLabelSpan.textContent = '上传图片';
+                imageInput.disabled = false;
+                e.target.value = null;
             }
         });
 
-        function showError(message) {
-            const toast = document.createElement('div');
-            toast.className = 'position-fixed bottom-0 end-0 m-3 toast align-items-center text-white bg-danger border-0';
-            toast.innerHTML = `
-                <div class="d-flex">
-                    <div class="toast-body">${message}</div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            `;
-            document.body.appendChild(toast);
-            new bootstrap.Toast(toast).show();
+        function displayResults(data) {
+            locationInfo.innerHTML = data.lat && data.lng ? `<p class="mb-1">纬度: ${Number(data.lat).toFixed(6)}</p><p class="mb-0">经度: ${Number(data.lng).toFixed(6)}</p>` : '--';
+            predictionReason.textContent = data.message || '未提供';
+
+            if (currentMarker) map.removeLayer(currentMarker);
+            referenceMarkers.forEach(marker => map.removeLayer(marker));
+            referenceMarkers = [];
+
+            let bounds = L.latLngBounds();
+
+            if (data.lat && data.lng) {
+                const latLng = L.latLng(data.lat, data.lng);
+                currentMarker = L.marker(latLng, {
+                    icon: L.divIcon({ className: 'result-marker', iconSize: [32, 32] })
+                }).addTo(map);
+                currentMarker.bindPopup(`<div class="p-2" style="min-width: 150px;"><h6 class="mb-2 fw-bold" style="color: var(--primary-color);">📍 预测位置</h6><p class="mb-1"><small>纬度:</small> ${data.lat.toFixed(6)}</p><p class="mb-0"><small>经度:</small> ${data.lng.toFixed(6)}</p></div>`);
+                bounds.extend(latLng);
+            } else {
+                showToast("未能获取有效的地理坐标", "warning");
+            }
+
+            if (data.reference_images && data.reference_images.length > 0) {
+                data.reference_images.forEach((ref, index) => {
+                    if (ref.lat && ref.lng && ref.thumbnail_url && ref.full_image_url) {
+                        const refLatLng = L.latLng(ref.lat, ref.lng);
+                        const refIcon = L.divIcon({
+                            className: 'ref-marker-icon',
+                            html: `<img src="${ref.thumbnail_url}" alt="Ref ${index + 1}">`,
+                            iconSize: [60, 60],
+                            iconAnchor: [30, 30]
+                        });
+                        const refMarker = L.marker(refLatLng, { icon: refIcon }).addTo(map);
+                        refMarker.bindTooltip(`参考点 ${index + 1}`, { direction: 'top', offset: [0, -30] });
+
+                        refMarker.on('click', () => {
+                            lightbox.option({
+                                'resizeDuration': 200,
+                                'fadeDuration': 300,
+                                'imageFadeDuration': 300,
+                                'wrapAround': true,
+                                'disableScrolling': true,
+                                'maxWidth': '90vw',
+                                'maxHeight': '90vh'
+                            });
+                            const link = document.createElement('a');
+                            link.href = ref.full_image_url;
+                            link.setAttribute('data-lightbox', 'reference-images');
+                            const similarityText = ref.similarity ? `<span class="similarity-score">相似度: ${(ref.similarity * 100).toFixed(1)}%</span>` : '';
+                            link.setAttribute('data-title', `参考图片 ${index + 1}<br><small>坐标: ${ref.lat.toFixed(6)}, ${ref.lng.toFixed(6)}</small><br>${similarityText}`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        });
+                        referenceMarkers.push(refMarker);
+                        bounds.extend(refLatLng);
+                    }
+                });
+            }
+
+            if (bounds.isValid()) {
+                map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: true, duration: 1.5 });
+            } else if (data.lat && data.lng) {
+                map.flyTo([data.lat, data.lng], 15, { animate: true, duration: 1.5 });
+            }
         }
+
+        blurButton.addEventListener('click', async () => {
+            const file = window.currentImageFile;
+            if (!file) { showToast('没有可处理的图片文件', 'warning'); return; }
+            blurButton.classList.add('loading');
+            blurButton.disabled = true;
+            blurButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> 处理中...`;
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                console.log("Simulating API call for blur...");
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const originalFileName = file.name || 'image.jpg';
+                const fileExt = originalFileName.split('.').pop() || 'jpg';
+                const mimeType = `image/${fileExt === 'jpg' ? 'jpeg' : fileExt}`;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 200; canvas.height = 150;
+                ctx.fillStyle = '#aaaaaa'; ctx.fillRect(0, 0, 200, 150);
+                ctx.font = '16px Poppins'; ctx.fillStyle = '#333333'; ctx.textAlign = 'center';
+                ctx.fillText('Blurred Placeholder', 100, 70);
+                ctx.fillText(originalFileName, 100, 95);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.8));
+                const blurredFilename = `blurred_${originalFileName}`;
+                const response = new Response(blob, {
+                    ok: true, status: 200, statusText: 'OK',
+                    headers: {
+                        'Content-Disposition': `attachment; filename="${blurredFilename}"`,
+                        'Content-Type': mimeType
+                    }
+                });
+                if (!response.ok) throw new Error(`处理失败: ${response.status}`);
+                const finalBlob = await response.blob();
+                const contentDisposition = response.headers.get('Content-Disposition');
+                let downloadFilename = 'blurred_image.jpg';
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)|filename="?(.+)"?/i);
+                    if (filenameMatch) downloadFilename = decodeURIComponent(filenameMatch[1] || filenameMatch[2]).replace(/["']/g, '');
+                } else { downloadFilename = 'blurred_' + (file.name || 'image.jpg'); }
+
+                const originalObjectURL = URL.createObjectURL(file);
+                const blurredObjectURL = URL.createObjectURL(finalBlob);
+
+                window.blurredImageData = { blob: finalBlob, filename: downloadFilename, originalObjectURL: originalObjectURL };
+                modalOriginalImage.src = originalObjectURL;
+                modalBlurredImage.src = blurredObjectURL;
+                blurModal.show();
+
+            } catch (error) {
+                console.error('Blur failed:', error);
+                showToast(`模糊处理失败: ${error.message || '请重试'}`, 'danger');
+                blurButton.innerHTML = `<i class="fas fa-eye-slash"></i> 模糊处理与对比`;
+                blurButton.disabled = false;
+            } finally {
+                blurButton.classList.remove('loading');
+            }
+        });
+
+        modalDownloadButton.addEventListener('click', () => {
+            const { blob, filename } = window.blurredImageData;
+            if (!blob || !filename) { showToast('没有可下载的模糊图片数据', 'error'); return; }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none'; a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('模糊图片已开始下载。', 'success');
+            blurModal.hide();
+        });
+
+        blurModalElement.addEventListener('hidden.bs.modal', () => {
+            if (modalOriginalImage.src && modalOriginalImage.src.startsWith('blob:')) { URL.revokeObjectURL(modalOriginalImage.src); }
+            if (modalBlurredImage.src && modalBlurredImage.src.startsWith('blob:')) { URL.revokeObjectURL(modalBlurredImage.src); }
+            if (window.blurredImageData.originalObjectURL) { URL.revokeObjectURL(window.blurredImageData.originalObjectURL); window.blurredImageData.originalObjectURL = null; }
+            modalOriginalImage.src = '#'; modalBlurredImage.src = '#';
+            if (window.currentImageFile){ blurButton.disabled = false; }
+            blurButton.innerHTML = `<i class="fas fa-eye-slash"></i> 模糊处理与对比`;
+            console.log("Blur modal closed and resources revoked.");
+        });
+
+        let toastContainer = null;
+        function showToast(message, type = 'info') {
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.className = 'position-fixed top-0 end-0 p-3';
+                toastContainer.style.zIndex = "1100";
+                document.body.appendChild(toastContainer);
+            }
+            const toastId = 'toast-' + Date.now();
+            const toastHTML = `
+                <div id="${toastId}" class="toast align-items-center text-white bg-${type} border-0 fade show" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="4000" data-bs-autohide="true">
+                  <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                  </div>
+                </div>`;
+            toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+            const toastElement = document.getElementById(toastId);
+            const toast = new bootstrap.Toast(toastElement);
+            toast.show();
+            toastElement.addEventListener('hidden.bs.toast', () => { toastElement.remove(); });
+        }
+
+        lightbox.option({});
+
+        console.log("TerraPulse UI Initialized (No Dark Mode).");
+        map.invalidateSize();
+        window.addEventListener('resize', () => map.invalidateSize());
     </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9356126f2fcd12d2',t:'MTc0NTUwMjY1MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
